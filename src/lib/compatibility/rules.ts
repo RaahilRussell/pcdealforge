@@ -27,7 +27,7 @@ function result(
   affectedParts: ProductCategory[],
   confidence = 1,
 ): CompatibilityResult {
-  return { id, level, title, explanation, affectedParts, confidence };
+  return { id, level, title, explanation, affectedParts, confidence, ruleId: id, evidence: [] };
 }
 
 function pass(id: string, title: string, explanation: string, affectedParts: ProductCategory[]) {

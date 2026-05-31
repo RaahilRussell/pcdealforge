@@ -1,3 +1,5 @@
+import type { EvidenceCitation } from "@/lib/evidence/types";
+
 export type ProductCategory =
   | "cpu"
   | "gpu"
@@ -32,6 +34,8 @@ export type CompatibilityResult = {
   explanation: string;
   affectedParts: ProductCategory[];
   confidence: number;
+  ruleId: string;
+  evidence: EvidenceCitation[];
 };
 
 export type CompatibilityReport = {

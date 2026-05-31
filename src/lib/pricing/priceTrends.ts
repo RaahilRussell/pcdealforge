@@ -1,4 +1,5 @@
 import type { NormalizedOffer, ScoredOffer } from "../deals/types";
+import type { EvidenceCitation } from "../evidence/types";
 
 export type PriceVerdict = "BUY_NOW" | "WAIT" | "AVOID";
 
@@ -37,6 +38,7 @@ export type ProductPriceTrend = {
   estimatedSavingsIfWaiting: number;
   verdict: PriceVerdict;
   explanation: string;
+  evidence?: EvidenceCitation[];
 };
 
 export type BuildPriceTrendInput = {

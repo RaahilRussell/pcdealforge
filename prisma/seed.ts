@@ -1185,7 +1185,7 @@ function productEvidence(product: ProductSeed): ProductEvidenceSeed[] {
       common("gpu_length", "lengthMm", "card length", "mm"),
       common("gpu_slots", "slots", "slot thickness", "slots"),
       common("tdp", "tdp", "board power", "W"),
-      common("power_connector", "power connector requirement"),
+      common("power_connector", "powerConnector", "power connector requirement"),
       common("psu_wattage", "recommendedPsuW", "recommended PSU", "W"),
       common("performance_score", "performanceScore", "seeded performance score"),
     );
