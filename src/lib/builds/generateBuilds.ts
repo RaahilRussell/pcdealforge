@@ -157,10 +157,16 @@ function priceProducts(input: BuildOptimizerInput): PricedProduct[] {
 }
 
 function groupByCategory(pricedProducts: PricedProduct[]) {
-  const empty = Object.fromEntries(categories.map((category) => [category, []])) as Record<
-    ProductCategory,
-    PricedProduct[]
-  >;
+  const empty: Record<ProductCategory, PricedProduct[]> = {
+    cpu: [],
+    gpu: [],
+    motherboard: [],
+    ram: [],
+    storage: [],
+    psu: [],
+    case: [],
+    cooler: [],
+  };
 
   return pricedProducts.reduce((grouped, item) => {
     grouped[item.product.category].push(item);
