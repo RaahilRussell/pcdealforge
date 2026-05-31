@@ -31,6 +31,15 @@ type ProductSeed = {
   };
 };
 
+type ProductEvidenceSeed = {
+  productId: string;
+  evidenceSourceId: string;
+  claimType: string;
+  claim: string;
+  value: string;
+  unit?: string;
+};
+
 const adapter = new PrismaBetterSqlite3({
   url: process.env.DATABASE_URL ?? "file:./dev.db",
 });
@@ -1130,7 +1139,200 @@ function shippingFor(product: ProductSeed, price: number) {
   return product.category === "case" ? 14.99 : 6.99;
 }
 
+function sourceIdForProduct(product: ProductSeed) {
+  return `source-seeded-demo-${product.id}`;
+}
+
+function evidenceId(evidence: ProductEvidenceSeed) {
+  return `${evidence.productId}-${evidence.claimType}-${normalize(evidence.claim).replaceAll(" ", "-")}`.slice(0, 180);
+}
+
+function stringifyEvidenceValue(value: unknown) {
+  if (Array.isArray(value)) return value.join(", ");
+  if (value && typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function productEvidence(product: ProductSeed): ProductEvidenceSeed[] {
+  const sourceId = sourceIdForProduct(product);
+  const specs = product.specs;
+  const common = (claimType: string, key: string, label: string, unit?: string): ProductEvidenceSeed | null => {
+    if (!(key in specs)) return null;
+    return {
+      productId: product.id,
+      evidenceSourceId: sourceId,
+      claimType,
+      claim: `${product.brand} ${product.model} ${label}`,
+      value: stringifyEvidenceValue(specs[key]),
+      unit,
+    };
+  };
+
+  const entries: Array<ProductEvidenceSeed | null> = [];
+
+  if (product.category === "cpu") {
+    entries.push(
+      common("socket", "socket", "CPU socket"),
+      common("tdp", "tdp", "thermal design power", "W"),
+      common("ram_type", "supportedRamTypes", "supported memory type"),
+      common("performance_score", "performanceScore", "seeded performance score"),
+      common("cooler_included", "includesCooler", "boxed cooler included"),
+    );
+  }
+
+  if (product.category === "gpu") {
+    entries.push(
+      common("gpu_length", "lengthMm", "card length", "mm"),
+      common("gpu_slots", "slots", "slot thickness", "slots"),
+      common("tdp", "tdp", "board power", "W"),
+      common("power_connector", "power connector requirement"),
+      common("psu_wattage", "recommendedPsuW", "recommended PSU", "W"),
+      common("performance_score", "performanceScore", "seeded performance score"),
+    );
+  }
+
+  if (product.category === "motherboard") {
+    entries.push(
+      common("socket", "socket", "CPU socket"),
+      common("chipset", "chipset", "chipset"),
+      common("ram_type", "ramType", "memory type"),
+      common("form_factor", "formFactor", "form factor"),
+      common("m2_slots", "m2Slots", "M.2 slot count"),
+      common("wifi", "hasWifi", "Wi-Fi support"),
+      common("front_usb_c", "hasFrontUsbCHeader", "front USB-C header"),
+      common("bios_support", "biosSupportJson", "BIOS support matrix"),
+      common("ram_capacity", "maxRamGb", "maximum memory capacity", "GB"),
+    );
+  }
+
+  if (product.category === "ram") {
+    entries.push(
+      common("ram_type", "ramType", "memory type"),
+      common("ram_capacity", "capacityGb", "memory capacity", "GB"),
+      common("ram_speed", "speedMt", "memory speed", "MT/s"),
+      common("ram_latency", "casLatency", "CAS latency"),
+      common("ram_height", "heightMm", "module height", "mm"),
+    );
+  }
+
+  if (product.category === "storage") {
+    entries.push(
+      common("storage_capacity", "capacityGb", "storage capacity", "GB"),
+      common("storage_interface", "interface", "interface"),
+      common("storage_form_factor", "formFactor", "form factor"),
+    );
+  }
+
+  if (product.category === "psu") {
+    entries.push(
+      common("psu_wattage", "wattage", "rated wattage", "W"),
+      common("power_connector", "has12vhpwr", "12VHPWR support"),
+      common("power_connector", "has12v2x6", "12V-2x6 support"),
+      common("power_connector", "pcie8PinCount", "PCIe 8-pin connector count"),
+      common("efficiency", "efficiency", "efficiency rating"),
+      common("quality_tier", "qualityTier", "seeded PSU quality tier"),
+    );
+  }
+
+  if (product.category === "case") {
+    entries.push(
+      common("form_factor", "formFactorSupport", "supported motherboard form factors"),
+      common("case_clearance", "maxGpuLengthMm", "maximum GPU length", "mm"),
+      common("case_clearance", "maxCpuCoolerHeightMm", "maximum CPU cooler height", "mm"),
+      common("radiator_support", "radiatorSupport", "radiator support"),
+      common("front_usb_c", "hasFrontUsbC", "front USB-C support"),
+      common("airflow_score", "airflowScore", "seeded airflow score"),
+    );
+  }
+
+  if (product.category === "cooler") {
+    entries.push(
+      common("cooler_type", "type", "cooler type"),
+      common("socket", "supportedSockets", "supported CPU sockets"),
+      common("cooler_height", "heightMm", "cooler height", "mm"),
+      common("radiator_support", "radiatorSizeMm", "radiator size", "mm"),
+      common("tdp", "tdpRating", "cooling capacity", "W"),
+      common("ram_clearance", "ramClearanceIssue", "RAM clearance caveat"),
+    );
+  }
+
+  entries.push(
+    {
+      productId: product.id,
+      evidenceSourceId: sourceId,
+      claimType: "current_price",
+      claim: `${product.brand} ${product.model} seeded current demo price`,
+      value: stringifyEvidenceValue(product.priceProfile.current),
+      unit: "USD",
+    },
+    {
+      productId: product.id,
+      evidenceSourceId: sourceId,
+      claimType: "price_history",
+      claim: `${product.brand} ${product.model} seeded 180-day price history profile`,
+      value: `average ${product.priceProfile.average}, low ${product.priceProfile.low}, volatility ${product.priceProfile.volatility}`,
+      unit: "USD",
+    },
+  );
+
+  return entries.filter((entry): entry is ProductEvidenceSeed => Boolean(entry));
+}
+
+const internalCalculationSources = [
+  {
+    id: "source-calc-effective-price",
+    sourceType: "internal_calculation",
+    title: "Effective price formula",
+    publisher: "PCDealForge",
+    confidenceScore: 0.95,
+    notes: "Internal MVP calculation: price + shipping + taxEstimate + sellerRiskPenalty + conditionRiskPenalty.",
+  },
+  {
+    id: "source-calc-deal-score",
+    sourceType: "internal_calculation",
+    title: "Deal score formula",
+    publisher: "PCDealForge",
+    confidenceScore: 0.9,
+    notes: "Internal MVP weighted score using price versus 90-day average, historical low, seller trust, condition risk, and stock/shipping.",
+  },
+  {
+    id: "source-calc-price-verdict",
+    sourceType: "internal_calculation",
+    title: "Price verdict formula",
+    publisher: "PCDealForge",
+    confidenceScore: 0.9,
+    notes: "Internal MVP deterministic buy-now/wait/avoid thresholds based on tracked lows, sale bands, averages, and offer risk.",
+  },
+  {
+    id: "source-calc-build-score",
+    sourceType: "internal_calculation",
+    title: "Build scoring formula",
+    publisher: "PCDealForge",
+    confidenceScore: 0.9,
+    notes: "Internal MVP weighted score: performance, deal score, compatibility confidence, budget efficiency, minus warning penalties.",
+  },
+  {
+    id: "source-calc-psu-wattage",
+    sourceType: "internal_calculation",
+    title: "PSU wattage headroom formula",
+    publisher: "PCDealForge",
+    confidenceScore: 0.92,
+    notes: "Internal MVP formula: estimatedLoad = CPU TDP + GPU TDP + 100W overhead; recommendedPSU = estimatedLoad * 1.35.",
+  },
+  {
+    id: "source-calc-compatibility-rules",
+    sourceType: "compatibility_rule",
+    title: "Deterministic compatibility rules",
+    publisher: "PCDealForge",
+    confidenceScore: 0.94,
+    notes: "Internal TypeScript compatibility rules. These are deterministic checks, not LLM-generated claims.",
+  },
+];
+
 async function main() {
+  await prisma.buildEvidence.deleteMany();
+  await prisma.productEvidence.deleteMany();
+  await prisma.evidenceSource.deleteMany();
   await prisma.priceSnapshot.deleteMany();
   await prisma.dailyProductPrice.deleteMany();
   await prisma.offer.deleteMany();
@@ -1151,6 +1353,33 @@ async function main() {
       },
     });
   }
+
+  await prisma.evidenceSource.createMany({
+    data: [
+      ...internalCalculationSources.map((source) => ({
+        ...source,
+        capturedAt: anchorDate,
+      })),
+      ...products.map((product) => ({
+        id: sourceIdForProduct(product),
+        sourceType: "seeded_demo",
+        title: `Seeded demo source for ${product.brand} ${product.model}`,
+        publisher: "PCDealForge seed data",
+        capturedAt: anchorDate,
+        confidenceScore: 0.8,
+        notes:
+          "This is seeded demo evidence used for MVP functionality. Replace with manufacturer/API source in production.",
+      })),
+    ],
+  });
+
+  const productEvidenceRows = products.flatMap(productEvidence);
+  await prisma.productEvidence.createMany({
+    data: productEvidenceRows.map((evidence) => ({
+      id: evidenceId(evidence),
+      ...evidence,
+    })),
+  });
 
   const offers = products.flatMap((product, index) => {
     const trustedPrice = trustedOfferPrice(product);
@@ -1291,13 +1520,52 @@ async function main() {
     },
   });
 
+  await prisma.buildEvidence.createMany({
+    data: [
+      {
+        id: "build-evidence-seeded-build-compatibility",
+        savedBuildId: "saved-build-balanced-1440p",
+        evidenceSourceId: "source-calc-compatibility-rules",
+        claimType: "compatibility",
+        claim: "The seeded balanced build compatibility status is produced by deterministic PCDealForge rules.",
+      },
+      {
+        id: "build-evidence-seeded-build-value",
+        savedBuildId: "saved-build-balanced-1440p",
+        evidenceSourceId: "source-calc-build-score",
+        claimType: "value",
+        claim: "The seeded balanced build deal score is produced by the internal build scoring formula.",
+      },
+      {
+        id: "build-evidence-effective-price",
+        evidenceSourceId: "source-calc-effective-price",
+        claimType: "price",
+        claim: "Build prices use the internal effective price formula rather than raw sticker price.",
+      },
+      {
+        id: "build-evidence-price-verdict",
+        evidenceSourceId: "source-calc-price-verdict",
+        claimType: "recommendation",
+        claim: "Buy-now, wait, and avoid recommendations use deterministic price trend thresholds.",
+      },
+      {
+        id: "build-evidence-user-constraints",
+        evidenceSourceId: "source-calc-build-score",
+        claimType: "user_constraint",
+        claim: "Budget, resolution, GPU preference, RAM, storage, Wi-Fi, and risk tolerance are treated as build constraints.",
+      },
+    ],
+  });
+
   const counts = await prisma.product.groupBy({
     by: ["category"],
     _count: { id: true },
   });
 
   console.table(counts.map((count) => ({ category: count.category, products: count._count.id })));
-  console.log(`Seeded ${offers.length} offers and ${dailyRows.length} daily price rows.`);
+  console.log(
+    `Seeded ${offers.length} offers, ${dailyRows.length} daily price rows, and ${productEvidenceRows.length} product evidence records.`,
+  );
 }
 
 main()

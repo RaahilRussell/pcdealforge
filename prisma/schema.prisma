@@ -116,3 +116,46 @@ model SavedBuild {
   @@index([useCase])
   @@index([compatibilityStatus])
 }
+
+model EvidenceSource {
+  id              String   @id @default(cuid())
+  sourceType      String
+  title           String
+  publisher       String
+  url             String?
+  capturedAt      DateTime
+  confidenceScore Float
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([sourceType])
+}
+
+model ProductEvidence {
+  id               String   @id @default(cuid())
+  productId        String
+  evidenceSourceId String
+  claimType        String
+  claim            String
+  value            String
+  unit             String?
+  createdAt        DateTime @default(now())
+
+  @@index([productId])
+  @@index([claimType])
+  @@index([evidenceSourceId])
+}
+
+model BuildEvidence {
+  id               String   @id @default(cuid())
+  savedBuildId     String?
+  evidenceSourceId String
+  claimType        String
+  claim            String
+  createdAt        DateTime @default(now())
+
+  @@index([savedBuildId])
+  @@index([claimType])
+  @@index([evidenceSourceId])
+}
