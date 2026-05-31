@@ -11,3 +11,108 @@ generator client {
 datasource db {
   provider = "sqlite"
 }
+
+model Product {
+  id             String   @id @default(cuid())
+  category       String
+  brand          String
+  model          String
+  normalizedName String
+  mpn            String?
+  upc            String?
+  specsJson      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  offers        Offer[]
+  priceSnapshots PriceSnapshot[]
+  dailyPrices   DailyProductPrice[]
+
+  @@index([category])
+  @@index([normalizedName])
+  @@index([mpn])
+  @@index([upc])
+}
+
+model Offer {
+  id              String   @id @default(cuid())
+  productId       String
+  retailer        String
+  title           String
+  url             String
+  price           Float
+  shipping        Float
+  taxEstimate     Float
+  condition       String
+  sellerName      String?
+  sellerRating    Float?
+  inStock         Boolean
+  confidenceScore Float
+  lastCheckedAt   DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceSnapshots PriceSnapshot[]
+
+  @@index([productId])
+  @@index([retailer])
+  @@index([condition])
+  @@index([inStock])
+}
+
+model PriceSnapshot {
+  id            String   @id @default(cuid())
+  productId     String
+  offerId       String?
+  retailer      String
+  price         Float
+  shipping      Float
+  taxEstimate   Float
+  condition     String
+  inStock       Boolean
+  sellerName    String?
+  sellerRating  Float?
+  timestamp     DateTime
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  offer   Offer?  @relation(fields: [offerId], references: [id], onDelete: SetNull)
+
+  @@index([productId, timestamp])
+  @@index([offerId])
+  @@index([retailer])
+}
+
+model DailyProductPrice {
+  id                 String   @id @default(cuid())
+  productId          String
+  date               DateTime
+  minNewPrice        Float
+  minOpenBoxPrice    Float?
+  avgNewPrice        Float
+  lowestTrustedPrice Float
+  retailerCount      Int
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, date])
+  @@index([date])
+}
+
+model SavedBuild {
+  id                  String   @id @default(cuid())
+  name                String
+  targetBudget        Float
+  useCase             String
+  resolution          String
+  partsJson           String
+  totalPrice          Float
+  compatibilityStatus String
+  dealScore           Float
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([targetBudget])
+  @@index([useCase])
+  @@index([compatibilityStatus])
+}
