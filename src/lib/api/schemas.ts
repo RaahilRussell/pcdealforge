@@ -29,3 +29,13 @@ export const dealsRefreshSchema = z
   .object({
     adapter: z.enum(["mock"]).default("mock"),
   });
+
+export const buildVariantSchema = z.enum(["bestOverall", "cheapestSafe", "bestPerformancePerDollar"]);
+
+export const buildAnalysisSchema = generateBuildSchema.extend({
+  variant: buildVariantSchema.default("bestOverall"),
+});
+
+export const buildEvidenceSchema = buildAnalysisSchema;
+
+export const compareBuildsSchema = generateBuildSchema;

@@ -2,6 +2,7 @@ import { checkBuild } from "@/lib/compatibility/checkBuild";
 import type { ProductCategory } from "@/lib/compatibility/types";
 import { compatibilityCheckSchema } from "@/lib/api/schemas";
 import { getProductsByIds, toCompatibilityProduct } from "@/lib/data/catalog";
+import { attachEvidenceToCompatibilityReport } from "@/lib/evidence/evidenceMap";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -18,7 +19,10 @@ export async function POST(request: Request) {
     Object.entries(partIds).map(([category, productId]) => [category, byId.get(productId)]),
   ) as Partial<Record<ProductCategory, ReturnType<typeof toCompatibilityProduct>>>;
 
-  const report = checkBuild({ parts, wifiRequired: parsed.data.wifiRequired });
+  const report = await attachEvidenceToCompatibilityReport(
+    checkBuild({ parts, wifiRequired: parsed.data.wifiRequired }),
+    parts,
+  );
 
   return Response.json({ report });
 }

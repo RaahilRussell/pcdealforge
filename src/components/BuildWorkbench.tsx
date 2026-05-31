@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  AlertCircle,
   Bell,
   Cpu,
   Loader2,
@@ -14,11 +13,29 @@ import {
 } from "lucide-react";
 
 import { PriceHistoryChart } from "./PriceHistoryChart";
+import { EvidenceCitationList } from "./EvidenceCitationList";
+import { SourceBackedCompatibilityReport } from "./SourceBackedCompatibilityReport";
+import { SourceBackedPricePanel } from "./SourceBackedPricePanel";
 
 type Category = "cpu" | "gpu" | "motherboard" | "ram" | "storage" | "psu" | "case" | "cooler";
 type Status = "PASS" | "WARNING" | "FAIL";
 type Verdict = "BUY_NOW" | "WAIT" | "AVOID";
 type VariantKey = "bestOverall" | "cheapestSafe" | "bestPerformancePerDollar";
+type ReportTab = "Overview" | "Parts" | "Compatibility" | "Price History" | "Evidence" | "Full Essay";
+
+type EvidenceCitation = {
+  citationNumber: number;
+  title: string;
+  sourceType: string;
+  publisher: string;
+  url?: string | null;
+  confidenceScore: number;
+  capturedAt: string;
+  claim: string;
+  value: string;
+  unit?: string | null;
+  notes?: string | null;
+};
 
 type Part = {
   id: string;
@@ -45,6 +62,8 @@ type CompatibilityResult = {
   explanation: string;
   affectedParts: Category[];
   confidence: number;
+  ruleId: string;
+  evidence: EvidenceCitation[];
 };
 
 type ProductPriceTrend = {
@@ -57,6 +76,20 @@ type ProductPriceTrend = {
   ninetyDayAverage: number;
   verdict: Verdict;
   explanation: string;
+  evidence?: EvidenceCitation[];
+};
+
+type BuildEssay = {
+  executiveSummary: string;
+  positives: string;
+  negatives: string;
+  compatibilityReasoning: string;
+  dealReasoning: string;
+  whoShouldBuy: string;
+  whoShouldAvoid: string;
+  suggestedSwaps: string;
+  finalVerdict: string;
+  citations: EvidenceCitation[];
 };
 
 type GeneratedBuild = {
@@ -82,10 +115,30 @@ type GeneratedBuild = {
     savings: number;
     explanation: string;
   }>;
+  essay?: BuildEssay;
+  evidence?: EvidenceCitation[];
+  sourceConfidenceSummary?: {
+    totalSources: number;
+    averageConfidence: number;
+    seededDemoCount: number;
+    internalCalculationCount: number;
+    compatibilityRuleCount: number;
+  };
 };
 
 type GenerateBuildResponse = Record<VariantKey, GeneratedBuild | null> & {
   candidatesEvaluated: number;
+  comparison?: {
+    quickRecommendation: string;
+    bestOverallVsCheapestSafe: string;
+    bestOverallVsBestPerformancePerDollar: string;
+    cheapestSafeVsBestPerformancePerDollar: string;
+    whichOneIWouldBuyAndWhy: string;
+    whatIWouldWaitOn: string;
+    biggestRiskInEachBuild: string;
+    bestUpgradePath: string;
+    citations: EvidenceCitation[];
+  } | null;
 };
 
 type HistoryResponse = {
@@ -115,6 +168,7 @@ const categoryLabels: Record<Category, string> = {
 };
 
 const categories: Category[] = ["cpu", "gpu", "motherboard", "ram", "storage", "psu", "case", "cooler"];
+const reportTabs: ReportTab[] = ["Overview", "Parts", "Compatibility", "Price History", "Evidence", "Full Essay"];
 
 export function BuildWorkbench() {
   const [budget, setBudget] = useState(1500);
@@ -127,6 +181,7 @@ export function BuildWorkbench() {
   const [riskTolerance, setRiskTolerance] = useState("open_box_allowed");
   const [results, setResults] = useState<GenerateBuildResponse | null>(null);
   const [activeVariant, setActiveVariant] = useState<VariantKey>("bestOverall");
+  const [activeTab, setActiveTab] = useState<ReportTab>("Overview");
   const [history, setHistory] = useState<HistoryResponse["history"]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,6 +243,7 @@ export function BuildWorkbench() {
     const data = (await response.json()) as GenerateBuildResponse;
     setResults(data);
     setActiveVariant("bestOverall");
+    setActiveTab("Overview");
   }
 
   return (
@@ -346,42 +402,28 @@ export function BuildWorkbench() {
                       <VerdictPill verdict={activeBuild.priceVerdict} />
                     </div>
                   </div>
-                  <PartsTable build={activeBuild} />
-                </section>
 
-                <section className="grid gap-8 lg:grid-cols-[1fr_420px]">
-                  <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2">
-                      <TrendingDown className="h-5 w-5 text-teal-700" />
-                      <h2 className="text-lg font-semibold">GPU Price Timeline</h2>
-                    </div>
-                    <PriceHistoryChart history={history} currentPrice={activeBuild.productPriceTrends.find((trend) => trend.productId === activeGpuId)?.currentPrice} />
-                    <PriceSummary trend={activeBuild.productPriceTrends.find((trend) => trend.productId === activeGpuId)} />
+                  <div className="mb-5 flex gap-2 overflow-x-auto border-b border-zinc-200 pb-2">
+                    {reportTabs.map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`h-9 shrink-0 rounded-md px-3 text-sm font-medium ${
+                          activeTab === tab ? "bg-teal-700 text-white" : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                        }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
                   </div>
 
-                  <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-amber-600" />
-                      <h2 className="text-lg font-semibold">Compatibility Report</h2>
-                    </div>
-                    <div className="grid max-h-[430px] gap-3 overflow-auto pr-1">
-                      {activeBuild.compatibilityReport.results.map((result) => (
-                        <div key={result.id} className="rounded-md border border-zinc-200 p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="font-medium text-zinc-950">{result.title}</div>
-                              <p className="mt-1 text-sm leading-5 text-zinc-600">{result.explanation}</p>
-                            </div>
-                            <StatusPill status={result.level} />
-                          </div>
-                          <div className="mt-2 text-xs text-zinc-500">
-                            {result.affectedParts.map((part) => categoryLabels[part]).join(", ")} ·{" "}
-                            {Math.round(result.confidence * 100)}% confidence
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <BuildReportTab
+                    tab={activeTab}
+                    build={activeBuild}
+                    history={history}
+                    activeGpuId={activeGpuId}
+                    comparison={results?.comparison ?? null}
+                  />
                 </section>
 
                 <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
@@ -401,6 +443,118 @@ export function BuildWorkbench() {
         )}
       </section>
     </main>
+  );
+}
+
+function BuildReportTab({
+  tab,
+  build,
+  history,
+  activeGpuId,
+  comparison,
+}: {
+  tab: ReportTab;
+  build: GeneratedBuild;
+  history: HistoryResponse["history"];
+  activeGpuId?: string;
+  comparison: GenerateBuildResponse["comparison"];
+}) {
+  const gpuTrend = build.productPriceTrends.find((trend) => trend.productId === activeGpuId);
+
+  if (tab === "Overview") {
+    return (
+      <div className="grid gap-5">
+        <div className="grid gap-3 md:grid-cols-4">
+          <Metric label="Total" value={formatCurrency(build.totalPrice)} />
+          <Metric label="Performance" value={Math.round(build.performanceScore).toString()} />
+          <Metric label="Deal score" value={Math.round(build.dealScore).toString()} />
+          <Metric
+            label="Sources"
+            value={(build.sourceConfidenceSummary?.totalSources ?? build.evidence?.length ?? 0).toString()}
+          />
+        </div>
+        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+          <h3 className="font-semibold">Why This Build?</h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-700">{build.essay?.executiveSummary ?? build.whySelected}</p>
+          <p className="mt-3 text-sm leading-6 text-zinc-600">
+            Evidence posture: {build.sourceConfidenceSummary?.seededDemoCount ?? 0} seeded demo sources,{" "}
+            {build.sourceConfidenceSummary?.internalCalculationCount ?? 0} internal calculation sources, and{" "}
+            {build.sourceConfidenceSummary?.compatibilityRuleCount ?? 0} compatibility rule sources. Seeded demo sources
+            are local MVP records, not live web claims.
+          </p>
+        </div>
+        {comparison ? (
+          <div className="grid gap-3 rounded-md border border-zinc-200 bg-white p-4">
+            <h3 className="font-semibold">Build Comparison</h3>
+            <p className="text-sm leading-6 text-zinc-700">{comparison.quickRecommendation}</p>
+            <p className="text-sm leading-6 text-zinc-700">{comparison.whichOneIWouldBuyAndWhy}</p>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (tab === "Parts") {
+    return <PartsTable build={build} />;
+  }
+
+  if (tab === "Compatibility") {
+    return <SourceBackedCompatibilityReport results={build.compatibilityReport.results} />;
+  }
+
+  if (tab === "Price History") {
+    return (
+      <div className="grid gap-6">
+        <div>
+          <div className="mb-4 flex items-center gap-2">
+            <TrendingDown className="h-5 w-5 text-teal-700" />
+            <h3 className="text-lg font-semibold">GPU Price Timeline</h3>
+          </div>
+          <PriceHistoryChart history={history} currentPrice={gpuTrend?.currentPrice} />
+          <PriceSummary trend={gpuTrend} />
+        </div>
+        <SourceBackedPricePanel trends={build.productPriceTrends} />
+      </div>
+    );
+  }
+
+  if (tab === "Evidence") {
+    return <EvidenceCitationList citations={build.evidence ?? build.essay?.citations ?? []} />;
+  }
+
+  return <EssayReport essay={build.essay} />;
+}
+
+function EssayReport({ essay }: { essay?: BuildEssay }) {
+  if (!essay) {
+    return <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">No essay generated.</div>;
+  }
+
+  const sections = [
+    ["Executive Summary", essay.executiveSummary],
+    ["Major Positives", essay.positives],
+    ["Major Negatives", essay.negatives],
+    ["Compatibility Reasoning", essay.compatibilityReasoning],
+    ["Deal/Price Reasoning", essay.dealReasoning],
+    ["Who Should Buy", essay.whoShouldBuy],
+    ["Who Should Avoid", essay.whoShouldAvoid],
+    ["Suggested Swaps", essay.suggestedSwaps],
+    ["Final Verdict", essay.finalVerdict],
+  ];
+
+  return (
+    <div className="grid gap-5">
+      {sections.map(([title, body]) => (
+        <section key={title} className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+          <h3 className="font-semibold text-zinc-950">{title}</h3>
+          <p className="mt-2 text-sm leading-7 text-zinc-700">{body}</p>
+        </section>
+      ))}
+      <section className="rounded-md border border-zinc-200 bg-white p-4">
+        <h3 className="mb-3 font-semibold text-zinc-950">Sources Used</h3>
+        <EvidenceCitationList citations={essay.citations} />
+      </section>
+    </div>
   );
 }
 

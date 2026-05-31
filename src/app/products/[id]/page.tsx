@@ -2,10 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Bell, ExternalLink, ShieldCheck, TrendingDown } from "lucide-react";
 
+import { EvidenceCitationList } from "@/components/EvidenceCitationList";
 import { PriceHistoryChart } from "@/components/PriceHistoryChart";
 import { generateBuilds } from "@/lib/builds/generateBuilds";
 import { getBestSafeOffer, rankOffers } from "@/lib/deals/scoring";
 import { getCurrentOffers, getOptimizerCatalog, getPriceHistory, getProduct } from "@/lib/data/catalog";
+import { formatEvidenceCitation, summarizeEvidence } from "@/lib/evidence/formatEvidence";
+import { getEvidenceForProduct } from "@/lib/evidence/evidenceMap";
 import { calculateProductPriceTrend } from "@/lib/pricing/priceTrends";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +21,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     notFound();
   }
 
-  const [offers, historiesByProductId, catalog] = await Promise.all([
+  const [offers, historiesByProductId, catalog, evidenceRecords] = await Promise.all([
     getCurrentOffers([product.id]),
     getPriceHistory([product.id]),
     getOptimizerCatalog(),
+    getEvidenceForProduct(product.id),
   ]);
+  const citations = evidenceRecords.map((record, index) => formatEvidenceCitation(record, index + 1));
+  const citationsByClaimType = new Map(evidenceRecords.map((record, index) => [record.claimType, citations[index]]));
+  const sourceSummary = summarizeEvidence(citations);
   const history = historiesByProductId[product.id] ?? [];
   const stats = priceStats(history);
   const rankedOffers = rankOffers(offers, stats, "open_box_allowed");
@@ -70,6 +77,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 Seeded product detail with verified offer scoring, deterministic price timing, and compatibility-aware
                 build context.
               </p>
+              <p className="mt-2 text-sm text-zinc-500">
+                {sourceSummary.totalSources} evidence records · {sourceSummary.seededDemoCount} seeded demo sources ·{" "}
+                average confidence {Math.round(sourceSummary.averageConfidence * 100)}%
+              </p>
             </div>
             {trend ? (
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
@@ -87,12 +98,23 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold">Specs</h2>
             <dl className="mt-4 grid gap-3 text-sm">
-              {Object.entries(product.specs).map(([key, value]) => (
-                <div key={key} className="grid grid-cols-[150px_1fr] gap-3 border-b border-zinc-100 pb-2">
-                  <dt className="font-medium text-zinc-500">{formatSpecKey(key)}</dt>
-                  <dd className="text-zinc-800">{formatSpecValue(value)}</dd>
-                </div>
-              ))}
+              {Object.entries(product.specs).map(([key, value]) => {
+                const citation = citationsByClaimType.get(specClaimTypeForKey(key, product.category));
+
+                return (
+                  <div key={key} className="grid grid-cols-[150px_1fr] gap-3 border-b border-zinc-100 pb-2">
+                    <dt className="font-medium text-zinc-500">{formatSpecKey(key)}</dt>
+                    <dd className="text-zinc-800">
+                      {formatSpecValue(value)}
+                      {citation ? (
+                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
+                          [{citation.citationNumber}] Seeded demo source
+                        </span>
+                      ) : null}
+                    </dd>
+                  </div>
+                );
+              })}
             </dl>
           </div>
 
@@ -144,10 +166,14 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                         {offer.riskNotes.length > 0 ? offer.riskNotes.join(", ") : "Safe recommendation"}
                       </td>
                       <td className="py-3">
-                        <a className="inline-flex items-center gap-1 text-teal-700 hover:text-teal-900" href={offer.offer.url}>
-                          Open
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
+                        {offer.offer.url.includes("example.com") ? (
+                          <span className="text-zinc-500">Seeded demo listing</span>
+                        ) : (
+                          <a className="inline-flex items-center gap-1 text-teal-700 hover:text-teal-900" href={offer.offer.url}>
+                            Open
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -200,6 +226,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           </section>
+
+          <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold">Product Evidence</h2>
+            <EvidenceCitationList citations={citations} />
+          </section>
         </div>
       </section>
     </main>
@@ -236,6 +267,41 @@ function formatSpecValue(value: unknown) {
   if (value && typeof value === "object") return Object.entries(value).map(([key, item]) => `${key}: ${String(item)}`).join("; ");
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
+}
+
+function specClaimTypeForKey(key: string, category: string) {
+  const map: Record<string, string> = {
+    socket: "socket",
+    tdp: "tdp",
+    supportedRamTypes: "ram_type",
+    performanceScore: "performance_score",
+    lengthMm: "gpu_length",
+    slots: "gpu_slots",
+    powerConnector: "power_connector",
+    recommendedPsuW: "psu_wattage",
+    ramType: "ram_type",
+    capacityGb: "ram_capacity",
+    speedMt: "ram_speed",
+    heightMm: category === "ram" ? "ram_height" : "cooler_height",
+    formFactor: "form_factor",
+    formFactorSupport: "form_factor",
+    interface: "storage_interface",
+    type: category === "storage" ? "storage_type" : "cooler_type",
+    m2Slots: "m2_slots",
+    hasWifi: "wifi",
+    hasFrontUsbCHeader: "front_usb_c",
+    hasFrontUsbC: "front_usb_c",
+    wattage: "psu_wattage",
+    has12vhpwr: "power_connector",
+    has12v2x6: "power_connector",
+    maxGpuLengthMm: "case_clearance",
+    maxCpuCoolerHeightMm: "case_clearance",
+    radiatorSupport: "radiator_support",
+    radiatorSizeMm: "radiator_support",
+    supportedSockets: "socket",
+  };
+
+  return map[key] ?? key;
 }
 
 function verdictTone(verdict: string) {

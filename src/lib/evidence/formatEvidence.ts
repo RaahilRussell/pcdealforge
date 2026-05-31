@@ -34,3 +34,24 @@ export function sourceTypeLabel(sourceType: string) {
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
 }
+
+export function summarizeEvidence(citations: EvidenceCitation[]) {
+  const totalSources = citations.length;
+  const averageConfidence =
+    totalSources === 0
+      ? 0
+      : Math.round(
+          (citations.reduce((sum, citation) => sum + citation.confidenceScore, 0) / totalSources) * 100,
+        ) / 100;
+  const seededDemoCount = citations.filter((citation) => citation.sourceType === "seeded_demo").length;
+  const internalCalculationCount = citations.filter((citation) => citation.sourceType === "internal_calculation").length;
+  const compatibilityRuleCount = citations.filter((citation) => citation.sourceType === "compatibility_rule").length;
+
+  return {
+    totalSources,
+    averageConfidence,
+    seededDemoCount,
+    internalCalculationCount,
+    compatibilityRuleCount,
+  };
+}
