@@ -8,6 +8,7 @@ import type { GeneratedBuild } from "@/lib/builds/types";
 import type { ProductPriceTrend } from "@/lib/pricing/priceTrends";
 
 function trend(overrides: Partial<ProductPriceTrend> = {}): ProductPriceTrend {
+  const verdict = overrides.verdict ?? "WAIT";
   return {
     productId: "gpu-test",
     productName: "Test GPU",
@@ -24,7 +25,25 @@ function trend(overrides: Partial<ProductPriceTrend> = {}): ProductPriceTrend {
     currentPricePercentile: 0.74,
     usuallyCheaper: false,
     estimatedSavingsIfWaiting: 40,
-    verdict: "WAIT",
+    verdict,
+    verdictDetails: {
+      verdict,
+      primaryReason: {
+        severity: verdict === "BUY_NOW" ? "positive" : verdict === "AVOID" ? "danger" : "warning",
+        code: "test_price_reason",
+        title: "Test price reason",
+        explanation: "Test price reason with seeded comparison.",
+        currentValue: overrides.currentPrice ?? 610,
+        comparisonValue: overrides.ninetyDayAverage ?? 590,
+        deltaDollars: Math.abs((overrides.currentPrice ?? 610) - (overrides.ninetyDayAverage ?? 590)),
+        deltaPercent: 3.39,
+        affectedPartId: "gpu-test",
+        affectedPartName: "Test GPU",
+      },
+      reasons: [],
+      summary: "Test verdict.",
+      specificJustification: "Test price reason with seeded comparison.",
+    },
     explanation: "Current price is above the normal sale band.",
     ...overrides,
   };

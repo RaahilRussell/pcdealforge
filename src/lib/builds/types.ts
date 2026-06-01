@@ -1,6 +1,6 @@
 import type { BuildParts, CompatibilityReport, ProductForCompatibility } from "../compatibility/types";
 import type { NormalizedOffer, RiskTolerance, ScoredOffer } from "../deals/types";
-import type { DailyPricePoint, PriceVerdict, ProductPriceTrend } from "../pricing/priceTrends";
+import type { DailyPricePoint, PriceVerdict, PriceVerdictValue, ProductPriceTrend } from "../pricing/priceTrends";
 
 export type BuildUseCase = "gaming" | "workstation" | "general";
 export type BuildResolution = "1080p" | "1440p" | "4k";
@@ -42,7 +42,8 @@ export type GeneratedBuild = {
   performanceScore: number;
   compatibilityReport: CompatibilityReport;
   dealScore: number;
-  priceVerdict: PriceVerdict;
+  priceVerdict: PriceVerdictValue;
+  priceVerdictDetails?: PriceVerdict;
   productPriceTrends: ProductPriceTrend[];
   overallScore: number;
   whySelected: string;

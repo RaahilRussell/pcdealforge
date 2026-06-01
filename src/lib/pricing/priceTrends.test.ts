@@ -24,6 +24,7 @@ describe("price intelligence", () => {
     });
 
     expect(trend.verdict).toBe("BUY_NOW");
+    expect(trend.verdictDetails.primaryReason).toBeTruthy();
     expect(trend.currentPrice).toBe(91);
     expect(trend.ninetyDayAverage).toBeGreaterThan(91);
   });
@@ -36,6 +37,7 @@ describe("price intelligence", () => {
     });
 
     expect(trend.verdict).toBe("WAIT");
+    expect(trend.verdictDetails.primaryReason.explanation).toContain("$");
     expect(trend.estimatedSavingsIfWaiting).toBeGreaterThan(0);
   });
 

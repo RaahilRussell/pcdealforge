@@ -39,6 +39,7 @@ export function generateBuildEssay(build: GeneratedBuild, suppliedCitations: Evi
     (left, right) => right.estimatedSavingsIfWaiting - left.estimatedSavingsIfWaiting,
   )[0];
   const savings = build.productPriceTrends.reduce((sum, trend) => sum + trend.estimatedSavingsIfWaiting, 0);
+  const verdictReason = build.priceVerdictDetails?.specificJustification;
 
   const executiveSummary = `This recommendation is optimized as a ${build.performanceScore.toFixed(
     0,
@@ -89,7 +90,7 @@ export function generateBuildEssay(build: GeneratedBuild, suppliedCitations: Evi
     savings,
   )} of possible savings from waiting across the full part list, which maps to the build verdict of ${formatVerdict(
     build.priceVerdict,
-  )}. ${marker}`;
+  )}. ${verdictReason ? `The primary verdict reason is: ${verdictReason}` : ""} ${marker}`;
 
   const partByPartJustification = `Part-by-part justification: ${Object.values(partExplanations)
     .map((part) => part.shortReason)

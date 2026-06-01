@@ -23,6 +23,28 @@ type Verdict = "BUY_NOW" | "WAIT" | "AVOID";
 type VariantKey = "bestOverall" | "cheapestSafe" | "bestPerformancePerDollar";
 type ReportTab = "Overview" | "Parts" | "Compatibility" | "Price History" | "Evidence" | "Full Essay";
 
+type VerdictReason = {
+  severity: "positive" | "neutral" | "warning" | "danger";
+  code: string;
+  title: string;
+  explanation: string;
+  currentValue?: number;
+  comparisonValue?: number;
+  deltaDollars?: number;
+  deltaPercent?: number;
+  affectedPartId?: string;
+  affectedPartName?: string;
+  evidenceIds?: string[];
+};
+
+type PriceVerdictDetails = {
+  verdict: Verdict;
+  primaryReason: VerdictReason;
+  reasons: VerdictReason[];
+  summary: string;
+  specificJustification: string;
+};
+
 type EvidenceCitation = {
   evidenceId?: string;
   sourceId?: string;
@@ -84,6 +106,7 @@ type ProductPriceTrend = {
   ninetyDayAverage: number;
   estimatedSavingsIfWaiting: number;
   verdict: Verdict;
+  verdictDetails?: PriceVerdictDetails;
   explanation: string;
   evidence?: EvidenceCitation[];
 };
@@ -121,6 +144,7 @@ type GeneratedBuild = {
   };
   dealScore: number;
   priceVerdict: Verdict;
+  priceVerdictDetails?: PriceVerdictDetails;
   productPriceTrends: ProductPriceTrend[];
   overallScore: number;
   whySelected: string;
@@ -426,6 +450,15 @@ export function BuildWorkbench() {
                       <Metric label="Price verdict" value={formatVerdict(build.priceVerdict)} tone={verdictTone(build.priceVerdict)} />
                       <Metric label="Timing" value={formatAnyVerdict(build.timingReport?.timingVerdict ?? build.priceVerdict)} tone={timingTone(build.timingReport?.timingVerdict ?? build.priceVerdict)} />
                     </div>
+                    <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-3">
+                      <div className="text-xs font-semibold uppercase tracking-normal text-zinc-500">Reason</div>
+                      <p className="mt-1 text-sm font-medium text-zinc-800">
+                        {build.priceVerdictDetails?.primaryReason.title ?? primaryTrendReason(build)?.title ?? "Price verdict calculated from seeded history"}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-600">
+                        {build.priceVerdictDetails?.specificJustification ?? primaryTrendReason(build)?.explanation ?? "Seeded price history did not attach a detailed reason."}
+                      </p>
+                    </div>
                     <p className="mt-4 text-sm leading-6 text-zinc-600">{build.whySelected}</p>
                     <p className="mt-3 text-xs leading-5 text-zinc-500">
                       {buildBuyLinkCount(build)} buy/view links · Best deal: {bestDealPart(build)} · Biggest wait risk:{" "}
@@ -568,6 +601,16 @@ function BuildReportTab({
         <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
           <h3 className="font-semibold">Why This Build?</h3>
           <p className="mt-2 text-sm leading-6 text-zinc-700">{build.essay?.executiveSummary ?? build.whySelected}</p>
+          {build.priceVerdictDetails ? (
+            <div className="mt-4 rounded-md border border-zinc-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-normal text-zinc-500">Why this verdict?</div>
+              <p className="mt-1 text-sm font-semibold text-zinc-900">
+                {formatVerdict(build.priceVerdict)}: {build.priceVerdictDetails.primaryReason.title}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-zinc-700">{build.priceVerdictDetails.specificJustification}</p>
+              <VerdictReasonMetrics reason={build.priceVerdictDetails.primaryReason} />
+            </div>
+          ) : null}
           <p className="mt-3 text-sm leading-6 text-zinc-600">
             Evidence posture: {build.sourceConfidenceSummary?.seededDemoCount ?? 0} seeded demo sources,{" "}
             {build.sourceConfidenceSummary?.internalCalculationCount ?? 0} internal calculation sources, and{" "}
@@ -729,7 +772,12 @@ function PartsTable({ build }: { build: GeneratedBuild }) {
                   </span>
                 </td>
                 <td className="py-3">
-                  <VerdictPill verdict={trend?.verdict ?? "BUY_NOW"} />
+                  <div className="grid gap-1">
+                    <VerdictPill verdict={trend?.verdict ?? "BUY_NOW"} />
+                    <span className="max-w-[220px] text-xs leading-5 text-zinc-500">
+                      {trend?.verdictDetails?.primaryReason.title ?? trend?.explanation ?? "Seeded price check"}
+                    </span>
+                  </div>
                 </td>
                 <td className="py-3">
                   <button type="button" className="rounded-md bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-500">
@@ -828,7 +876,39 @@ function PriceSummary({ trend }: { trend?: ProductPriceTrend }) {
       <Metric label="90d low" value={formatCurrency(trend.ninetyDayLow)} />
       <Metric label="180d low" value={formatCurrency(trend.oneEightyDayLow)} />
       <Metric label="Average" value={formatCurrency(trend.ninetyDayAverage)} />
-      <p className="sm:col-span-5 text-sm leading-6 text-zinc-600">{trend.explanation}</p>
+      <p className="sm:col-span-5 text-sm leading-6 text-zinc-600">
+        {trend.verdictDetails
+          ? `${formatVerdict(trend.verdictDetails.verdict)}: ${trend.verdictDetails.specificJustification}`
+          : trend.explanation}
+      </p>
+      {trend.verdictDetails ? (
+        <div className="sm:col-span-5">
+          <VerdictReasonMetrics reason={trend.verdictDetails.primaryReason} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function VerdictReasonMetrics({ reason }: { reason: VerdictReason }) {
+  const metrics = [
+    reason.currentValue !== undefined ? ["Current", formatMaybeCurrency(reason.currentValue)] : null,
+    reason.comparisonValue !== undefined ? ["Comparison", formatMaybeCurrency(reason.comparisonValue)] : null,
+    reason.deltaDollars !== undefined ? ["Dollar delta", formatCurrency(reason.deltaDollars)] : null,
+    reason.deltaPercent !== undefined ? ["Percent delta", `${Math.round(reason.deltaPercent * 10) / 10}%`] : null,
+    reason.affectedPartName ? ["Affected part", reason.affectedPartName] : null,
+  ].filter((metric): metric is [string, string] => Boolean(metric));
+
+  if (metrics.length === 0) return null;
+
+  return (
+    <div className="mt-3 grid gap-2 sm:grid-cols-5">
+      {metrics.map(([label, value]) => (
+        <div key={`${label}-${value}`} className="rounded-md border border-zinc-200 bg-zinc-50 p-2">
+          <div className="text-[11px] font-semibold uppercase tracking-normal text-zinc-500">{label}</div>
+          <div className="mt-1 text-xs font-semibold text-zinc-800">{value}</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -905,6 +985,17 @@ function biggestOverpricedPart(build: GeneratedBuild) {
   );
 }
 
+function primaryTrendReason(build: GeneratedBuild) {
+  return build.productPriceTrends
+    .map((trend) => trend.verdictDetails?.primaryReason)
+    .find((reason) => reason?.severity === "danger" || reason?.severity === "warning");
+}
+
 function formatCurrency(value: number) {
   return `$${Math.round(value).toLocaleString("en-US")}`;
+}
+
+function formatMaybeCurrency(value: number) {
+  if (Math.abs(value) <= 1) return `${Math.round(value * 1000) / 10}%`;
+  return formatCurrency(value);
 }

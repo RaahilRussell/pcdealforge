@@ -1,5 +1,5 @@
 import type { CompatibilityReport } from "../compatibility/types";
-import type { PriceVerdict } from "../pricing/priceTrends";
+import type { PriceVerdictValue } from "../pricing/priceTrends";
 import type { GeneratedBuild } from "./types";
 
 export function calculateBuildPerformanceScore(build: Pick<GeneratedBuild, "parts">, useCase: string, resolution: string) {
@@ -45,8 +45,14 @@ export function calculateOverallScore(
   );
 }
 
-export function buildPriceVerdict(verdicts: PriceVerdict[], potentialSavings: number, totalPrice: number): PriceVerdict {
-  if (verdicts.includes("AVOID")) return "AVOID";
+export function buildPriceVerdict(
+  verdicts: PriceVerdictValue[],
+  potentialSavings: number,
+  totalPrice: number,
+): PriceVerdictValue {
+  const avoidCount = verdicts.filter((verdict) => verdict === "AVOID").length;
+  if (avoidCount >= 2 && potentialSavings >= Math.max(75, totalPrice * 0.08)) return "AVOID";
+  if (avoidCount > 0) return "WAIT";
   if (potentialSavings >= Math.max(50, totalPrice * 0.05) || verdicts.filter((verdict) => verdict === "WAIT").length >= 2) {
     return "WAIT";
   }

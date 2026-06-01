@@ -55,6 +55,8 @@ describe("build essays", () => {
     const build = result.bestOverall!;
     const finalVerdict = build.essay.finalVerdict;
 
+    expect(build.priceVerdictDetails?.primaryReason).toBeTruthy();
+    expect(build.priceVerdictDetails?.specificJustification).toBeTruthy();
     if (build.priceVerdict === "BUY_NOW") expect(finalVerdict).toContain("Buy now");
     if (build.priceVerdict === "WAIT") expect(finalVerdict).toContain("Wait for price drop");
     if (build.priceVerdict === "AVOID") expect(finalVerdict).toContain("Only buy if you need it immediately");

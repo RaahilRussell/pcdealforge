@@ -5,7 +5,7 @@ import type { ProductCategory, ProductForCompatibility } from "@/lib/compatibili
 import type { ScoredOffer } from "@/lib/deals/types";
 import { getSavedBuild, listPrebuiltSystems } from "@/lib/data/catalog";
 import type { EvidenceCitation } from "@/lib/evidence/types";
-import type { PriceVerdict, ProductPriceTrend } from "@/lib/pricing/priceTrends";
+import type { PriceVerdict, PriceVerdictValue, ProductPriceTrend } from "@/lib/pricing/priceTrends";
 import { buildShoppingList, type ShoppingList } from "@/lib/shopping/offers";
 import type { BuildTimingReport } from "@/lib/timing/types";
 
@@ -135,6 +135,7 @@ export function savedBuildToReportBuild(saved: NonNullable<Awaited<ReturnType<ty
     whySelected?: string;
     overallScore?: number;
     timingReport?: BuildTimingReport;
+    priceVerdictDetails?: PriceVerdict;
   };
 
   const build = {
@@ -145,7 +146,8 @@ export function savedBuildToReportBuild(saved: NonNullable<Awaited<ReturnType<ty
     performanceScore: saved.performanceScore,
     compatibilityReport: saved.compatibilityReport as GeneratedBuild["compatibilityReport"],
     dealScore: saved.dealScore,
-    priceVerdict: saved.priceVerdict as PriceVerdict,
+    priceVerdict: saved.priceVerdict as PriceVerdictValue,
+    priceVerdictDetails: priceSummary.priceVerdictDetails,
     productPriceTrends: priceSummary.productPriceTrends ?? [],
     overallScore: priceSummary.overallScore ?? 0,
     whySelected: priceSummary.whySelected ?? String((saved.essay as { executiveSummary?: string }).executiveSummary ?? ""),
@@ -309,6 +311,7 @@ function buildMarkdownReport(
     `Total: ${formatCurrency(build.totalPrice)}`,
     `Compatibility: ${build.compatibilityReport.overallStatus}`,
     `Price verdict: ${priceVerdictLabel(build.priceVerdict)}`,
+    `Verdict reason: ${build.priceVerdictDetails?.specificJustification ?? "Structured verdict reason unavailable."}`,
     `Data status: Seeded demo data unless a linked source says otherwise.`,
     ``,
     `## Cost Breakdown`,

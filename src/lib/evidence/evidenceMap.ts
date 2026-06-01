@@ -2,6 +2,7 @@ import type { GeneratedBuild } from "@/lib/builds/types";
 import type { CompatibilityReport, ProductForCompatibility } from "@/lib/compatibility/types";
 import type { NormalizedOffer, ScoredOffer } from "@/lib/deals/types";
 import type { ProductPriceTrend } from "@/lib/pricing/priceTrends";
+import { attachEvidenceIdsToPriceVerdict } from "@/lib/pricing/verdictReasons";
 import { prisma } from "@/lib/db/prisma";
 
 import { buildClaimRequestsForProducts, compatibilityClaimRequests, type ClaimRequest } from "./claimBuilder";
@@ -110,11 +111,15 @@ export async function attachEvidenceToDealReport(
       ]),
       ...calculationCitations,
     ];
+    const evidenceIds = evidence.flatMap((citation) => (citation.evidenceId ? [citation.evidenceId] : []));
+    const verdictDetails = attachEvidenceIdsToPriceVerdict(trend.verdictDetails, evidenceIds);
 
     return {
       ...trend,
+      verdictDetails,
+      verdict: verdictDetails.verdict,
       evidence,
-      explanation: appendCitationMarkers(trend.explanation, evidence),
+      explanation: appendCitationMarkers(verdictDetails.specificJustification, evidence),
     };
   });
 

@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db/prisma";
 import { attachEvidenceToBuildAnalysis } from "@/lib/evidence/evidenceMap";
 import { summarizeEvidence } from "@/lib/evidence/formatEvidence";
 import type { EvidenceCitation } from "@/lib/evidence/types";
+import { classifyBuildVerdict, getBuildPriceReasons } from "@/lib/pricing/verdictReasons";
 import { calculateBuildTimingReport } from "@/lib/timing/timingScore";
 import type { BuildTimingReport, ProductReleaseSignal } from "@/lib/timing/types";
 
@@ -91,12 +92,23 @@ export async function enhanceBuild(
     productPriceTrends: sourceBacked.priceReport.priceTrends,
     evidence: sourceBacked.evidence,
   };
-  const timingReport = calculateBuildTimingReport(enhancedBuild, releaseSignals);
-  const essay = generateBuildEssay(enhancedBuild, sourceBacked.evidence);
+  const priceVerdictDetails = classifyBuildVerdict(
+    getBuildPriceReasons(
+      enhancedBuild,
+      enhancedBuild.productPriceTrends.map((trend) => trend.verdictDetails),
+    ),
+  );
+  const priceBackedBuild = {
+    ...enhancedBuild,
+    priceVerdict: priceVerdictDetails.verdict,
+    priceVerdictDetails,
+  };
+  const timingReport = calculateBuildTimingReport(priceBackedBuild, releaseSignals);
+  const essay = generateBuildEssay(priceBackedBuild, sourceBacked.evidence);
   const evidence = essay.citations;
 
   return {
-    ...enhancedBuild,
+    ...priceBackedBuild,
     essay,
     evidence,
     sourceConfidenceSummary: summarizeEvidence(evidence),
@@ -126,6 +138,7 @@ async function persistBuildVariant(
     whySelected: build.whySelected,
     overallScore: build.overallScore,
     timingReport: build.timingReport,
+    priceVerdictDetails: build.priceVerdictDetails,
   };
 
   await prisma.savedBuild.upsert({

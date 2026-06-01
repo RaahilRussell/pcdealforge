@@ -1,7 +1,13 @@
 import type { NormalizedOffer, ScoredOffer } from "../deals/types";
 import type { EvidenceCitation } from "../evidence/types";
+import {
+  classifyPartVerdict,
+  getPartPriceReasons,
+  type PriceVerdict,
+  type PriceVerdictValue,
+} from "./verdictReasons";
 
-export type PriceVerdict = "BUY_NOW" | "WAIT" | "AVOID";
+export type { PriceVerdict, PriceVerdictValue, VerdictReason } from "./verdictReasons";
 
 export type DailyPricePoint = {
   date: Date | string;
@@ -36,7 +42,8 @@ export type ProductPriceTrend = {
   currentPricePercentile: number;
   usuallyCheaper: boolean;
   estimatedSavingsIfWaiting: number;
-  verdict: PriceVerdict;
+  verdict: PriceVerdictValue;
+  verdictDetails: PriceVerdict;
   explanation: string;
   evidence?: EvidenceCitation[];
 };
@@ -84,9 +91,8 @@ export function calculateProductPriceTrend(input: ProductPriceTrendInput): Produ
   const estimatedSavingsIfWaiting = roundMoney(Math.max(0, currentPrice - expectedSalePrice));
   const usuallyCheaper =
     currentPrice > expectedSalePrice && estimatedSavingsIfWaiting >= Math.max(15, currentPrice * 0.05);
-  const riskAvoid = isRiskyOffer(input.bestOffer);
 
-  const trend: Omit<ProductPriceTrend, "verdict" | "explanation"> = {
+  const trend: Omit<ProductPriceTrend, "verdict" | "verdictDetails" | "explanation"> = {
     productId: input.productId,
     productName: input.productName,
     currentPrice,
@@ -104,12 +110,20 @@ export function calculateProductPriceTrend(input: ProductPriceTrendInput): Produ
     estimatedSavingsIfWaiting,
   };
 
-  const verdict = priceVerdict(trend, riskAvoid);
+  const verdictDetails = classifyPartVerdict(
+    getPartPriceReasons(
+      { id: input.productId, productName: input.productName },
+      input.bestOffer,
+      history,
+      { currentPrice },
+    ),
+  );
 
   return {
     ...trend,
-    verdict,
-    explanation: explainVerdict(verdict, trend, riskAvoid),
+    verdict: verdictDetails.verdict,
+    verdictDetails,
+    explanation: verdictDetails.specificJustification,
   };
 }
 
@@ -135,60 +149,6 @@ export function calculateBuildPriceTrend(input: BuildPriceTrendInput): BuildPric
     overpricedParts,
     compatibleCheaperSwaps: input.compatibleCheaperSwaps ?? [],
   };
-}
-
-function priceVerdict(
-  trend: Omit<ProductPriceTrend, "verdict" | "explanation">,
-  riskAvoid: boolean,
-): PriceVerdict {
-  if (riskAvoid) return "AVOID";
-
-  const withinLowBand = trend.currentPrice <= trend.lowestTrackedPrice * 1.1;
-  const belowNinetyAverage = trend.currentPrice < trend.ninetyDayAverage;
-  const aboveNormalSaleBand = trend.currentPrice > trend.typicalSaleBand[1];
-  const unusuallyHigh = trend.currentPricePercentile >= 0.9 && trend.currentPrice > trend.ninetyDayAverage * 1.25;
-
-  if (unusuallyHigh) return "AVOID";
-  if (belowNinetyAverage && withinLowBand) return "BUY_NOW";
-  if (aboveNormalSaleBand || trend.usuallyCheaper) return "WAIT";
-  return "BUY_NOW";
-}
-
-function explainVerdict(
-  verdict: PriceVerdict,
-  trend: Omit<ProductPriceTrend, "verdict" | "explanation">,
-  riskAvoid: boolean,
-) {
-  if (riskAvoid) {
-    return "The best visible listing carries major seller, confidence, or condition risk, so it should not drive a safe purchase.";
-  }
-
-  if (verdict === "BUY_NOW") {
-    return `Current price is below the 90-day average of ${formatCurrency(
-      trend.ninetyDayAverage,
-    )} and close to the tracked low of ${formatCurrency(trend.lowestTrackedPrice)}.`;
-  }
-
-  if (verdict === "WAIT") {
-    return `Current price is above the normal sale band of ${formatCurrency(
-      trend.typicalSaleBand[0],
-    )}-${formatCurrency(trend.typicalSaleBand[1])}; waiting could save about ${formatCurrency(
-      trend.estimatedSavingsIfWaiting,
-    )}.`;
-  }
-
-  return `Current price is unusually high versus the tracked range and 90-day average of ${formatCurrency(
-    trend.ninetyDayAverage,
-  )}.`;
-}
-
-function isRiskyOffer(offer: ProductPriceTrendInput["bestOffer"]) {
-  if (!offer) return false;
-  const normalizedOffer: NormalizedOffer = "offer" in offer ? offer.offer : offer;
-  if (!normalizedOffer.inStock) return true;
-  if (normalizedOffer.confidenceScore < 0.65) return true;
-  if ((normalizedOffer.sellerRating ?? 5) < 4) return true;
-  return normalizedOffer.condition === "used" && normalizedOffer.confidenceScore < 0.9;
 }
 
 function buildHistoryTotals(historiesByProductId: Record<string, DailyPricePoint[]>) {
@@ -237,8 +197,4 @@ function toTime(value: Date | string) {
 
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
-}
-
-function formatCurrency(value: number) {
-  return `$${Math.round(value).toLocaleString("en-US")}`;
 }

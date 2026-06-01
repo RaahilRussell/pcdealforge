@@ -10,6 +10,23 @@ type PriceTrend = {
   oneEightyDayLow: number;
   ninetyDayAverage: number;
   verdict: "BUY_NOW" | "WAIT" | "AVOID";
+  verdictDetails?: {
+    verdict: "BUY_NOW" | "WAIT" | "AVOID";
+    primaryReason: {
+      severity: "positive" | "neutral" | "warning" | "danger";
+      code: string;
+      title: string;
+      explanation: string;
+      currentValue?: number;
+      comparisonValue?: number;
+      deltaDollars?: number;
+      deltaPercent?: number;
+      affectedPartName?: string;
+      evidenceIds?: string[];
+    };
+    summary: string;
+    specificJustification: string;
+  };
   explanation: string;
   evidence?: Array<{
     evidenceId?: string;
@@ -41,9 +58,14 @@ export function SourceBackedPricePanel({ trends }: { trends: PriceTrend[] }) {
                 <div>
                   <div className="font-medium text-zinc-950">{trend.productName}</div>
                   <p className="mt-2 text-sm leading-6 text-zinc-600">
-                    Current price is {currency(trend.currentPrice)}, compared with a 90-day average of{" "}
-                    {currency(trend.ninetyDayAverage)} and a 180-day low of {currency(trend.oneEightyDayLow)}. This
-                    triggers a {trend.verdict.replace("_", " ")} verdict.{" "}
+                    {trend.verdictDetails
+                      ? `${trend.verdictDetails.verdict.replace("_", " ")}: ${trend.verdictDetails.specificJustification}`
+                      : `Current price is ${currency(trend.currentPrice)}, compared with a 90-day average of ${currency(
+                          trend.ninetyDayAverage,
+                        )} and a 180-day low of ${currency(trend.oneEightyDayLow)}. This triggers a ${trend.verdict.replace(
+                          "_",
+                          " ",
+                        )} verdict.`}{" "}
                     {citations.map((citation) => `[${citation.citationNumber}]`).join("")}
                   </p>
                 </div>
@@ -60,6 +82,29 @@ export function SourceBackedPricePanel({ trends }: { trends: PriceTrend[] }) {
                 <Metric label="180d low" value={currency(trend.oneEightyDayLow)} />
               </div>
               <p className="text-sm leading-6 text-zinc-600">{trend.explanation}</p>
+              {trend.verdictDetails ? (
+                <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm">
+                  <div className="font-semibold text-zinc-900">{trend.verdictDetails.primaryReason.title}</div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-4">
+                    <Metric label="Current" value={formatReasonValue(trend.verdictDetails.primaryReason.currentValue)} />
+                    <Metric label="Comparison" value={formatReasonValue(trend.verdictDetails.primaryReason.comparisonValue)} />
+                    <Metric label="Dollar delta" value={formatReasonValue(trend.verdictDetails.primaryReason.deltaDollars, true)} />
+                    <Metric
+                      label="Percent delta"
+                      value={
+                        trend.verdictDetails.primaryReason.deltaPercent === undefined
+                          ? "n/a"
+                          : `${Math.round(trend.verdictDetails.primaryReason.deltaPercent * 10) / 10}%`
+                      }
+                    />
+                  </div>
+                  {trend.verdictDetails.primaryReason.affectedPartName ? (
+                    <p className="mt-2 text-xs text-zinc-500">
+                      Affected part: {trend.verdictDetails.primaryReason.affectedPartName}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <EvidenceCitationList citations={citations} />
             </div>
           </details>
@@ -86,4 +131,10 @@ function verdictClass(verdict: string) {
 
 function currency(value: number) {
   return `$${Math.round(value).toLocaleString("en-US")}`;
+}
+
+function formatReasonValue(value: number | undefined, forceCurrency = false) {
+  if (value === undefined) return "n/a";
+  if (forceCurrency || Math.abs(value) > 1) return currency(value);
+  return `${Math.round(value * 1000) / 10}%`;
 }

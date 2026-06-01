@@ -92,6 +92,44 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
           </p>
         </Panel>
 
+        <Panel id="why-verdict" title="Why This Verdict?" icon={<TrendingDown className="h-5 w-5 text-teal-700" />}>
+          {build.priceVerdictDetails ? (
+            <div className="grid gap-4">
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-normal text-zinc-500">Primary verdict reason</div>
+                    <h3 className="mt-1 text-lg font-semibold">
+                      {priceVerdictLabel(build.priceVerdict)}: {build.priceVerdictDetails.primaryReason.title}
+                    </h3>
+                  </div>
+                  <Badge>{verdictDriver(build.priceVerdictDetails.primaryReason.code)}</Badge>
+                </div>
+                <p className="mt-3 max-w-5xl text-sm leading-7 text-zinc-700">
+                  {build.priceVerdictDetails.specificJustification}
+                </p>
+                <VerdictReasonMetrics reason={build.priceVerdictDetails.primaryReason} />
+                <EvidenceLinks evidenceIds={build.priceVerdictDetails.primaryReason.evidenceIds ?? []} />
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {build.priceVerdictDetails.reasons.slice(0, 6).map((reason) => (
+                  <div key={`${reason.code}-${reason.affectedPartId ?? "build"}`} className="rounded-md border border-zinc-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-semibold">{reason.title}</div>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${reasonSeverityClass(reason.severity)}`}>
+                        {reason.severity}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-zinc-600">{reason.explanation}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-600">This saved build predates structured verdict reasons. Generate the build again to attach exact price comparisons.</p>
+          )}
+        </Panel>
+
         <Panel id="shopping-list" title="Shopping List" icon={<ShoppingCart className="h-5 w-5 text-teal-700" />}>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1180px] border-collapse text-sm">
@@ -404,7 +442,8 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
               <Metric label="Potential savings" value={formatCurrency(build.productPriceTrends.reduce((sum, trend) => sum + trend.estimatedSavingsIfWaiting, 0))} />
             </div>
             <p className="text-sm leading-7 text-zinc-700">
-              The build verdict is {priceVerdictLabel(build.priceVerdict)}. The best part deal by current seeded price is{" "}
+              The build verdict is {priceVerdictLabel(build.priceVerdict)} because{" "}
+              {build.priceVerdictDetails?.primaryReason.explanation ?? "the seeded price model found the attached price signal"}. The best part deal by current seeded price is{" "}
               {bestDeal?.productName ?? "not available"}, while the most overpriced part by estimated waiting savings is{" "}
               {worstDeal?.productName ?? "not available"}. Each price claim is based on seeded price snapshots and internal
               calculation evidence, not live retailer inventory.
@@ -499,6 +538,68 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">{children}</span>;
+}
+
+function VerdictReasonMetrics({
+  reason,
+}: {
+  reason: {
+    currentValue?: number;
+    comparisonValue?: number;
+    deltaDollars?: number;
+    deltaPercent?: number;
+    affectedPartName?: string;
+  };
+}) {
+  const values = [
+    reason.currentValue !== undefined ? ["Current", reasonValue(reason.currentValue)] : null,
+    reason.comparisonValue !== undefined ? ["Comparison", reasonValue(reason.comparisonValue)] : null,
+    reason.deltaDollars !== undefined ? ["Dollar delta", formatCurrency(reason.deltaDollars)] : null,
+    reason.deltaPercent !== undefined ? ["Percent delta", `${Math.round(reason.deltaPercent * 10) / 10}%`] : null,
+    reason.affectedPartName ? ["Affected part", reason.affectedPartName] : null,
+  ].filter((value): value is [string, string] => Boolean(value));
+
+  if (values.length === 0) return null;
+
+  return (
+    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {values.map(([label, value]) => (
+        <Metric key={`${label}-${value}`} label={label} value={value} />
+      ))}
+    </div>
+  );
+}
+
+function EvidenceLinks({ evidenceIds }: { evidenceIds: string[] }) {
+  if (evidenceIds.length === 0) return null;
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {evidenceIds.slice(0, 6).map((evidenceId) => (
+        <Link key={evidenceId} href={`/evidence/${evidenceId}`} className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 ring-1 ring-teal-200 hover:text-teal-900">
+          Evidence source
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function verdictDriver(code: string) {
+  if (code.includes("compatibility")) return "Compatibility-driven";
+  if (code.includes("offer") || code.includes("confidence") || code.includes("risk")) return "Seller-risk-driven";
+  if (code.includes("release")) return "Release-driven";
+  return "Price-driven";
+}
+
+function reasonSeverityClass(severity: string) {
+  if (severity === "positive") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (severity === "warning") return "bg-amber-50 text-amber-700 ring-amber-200";
+  if (severity === "danger") return "bg-rose-50 text-rose-700 ring-rose-200";
+  return "bg-zinc-50 text-zinc-700 ring-zinc-200";
+}
+
+function reasonValue(value: number) {
+  if (Math.abs(value) <= 1) return `${Math.round(value * 1000) / 10}%`;
+  return formatCurrency(value);
 }
 
 function BulletBox({ title, items }: { title: string; items: string[] }) {

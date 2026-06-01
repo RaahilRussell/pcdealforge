@@ -87,6 +87,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 <div className="text-sm font-medium text-zinc-500">Verdict</div>
                 <div className={`mt-1 text-2xl font-semibold ${verdictTone(trend.verdict)}`}>{trend.verdict.replace("_", " ")}</div>
                 <div className="mt-1 text-sm text-zinc-600">{formatCurrency(trend.currentPrice)} effective</div>
+                <div className="mt-2 max-w-[320px] text-xs leading-5 text-zinc-600">
+                  {trend.verdictDetails.primaryReason.title}: {trend.verdictDetails.specificJustification}
+                </div>
               </div>
             ) : null}
           </div>
@@ -202,7 +205,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 <Metric label="Average" value={formatCurrency(trend.ninetyDayAverage)} />
                 <div className="md:col-span-5 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-zinc-700">
                   <div className="font-medium">Usually cheaper: {trend.usuallyCheaper ? "yes" : "no"}</div>
-                  <p className="mt-1 leading-6">{trend.explanation}</p>
+                  <p className="mt-1 leading-6">
+                    {trend.verdict.replace("_", " ")}: {trend.verdictDetails.specificJustification}
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                    <Metric label="Compared with" value={formatMaybeCurrency(trend.verdictDetails.primaryReason.comparisonValue)} />
+                    <Metric label="Dollar delta" value={formatMaybeCurrency(trend.verdictDetails.primaryReason.deltaDollars, true)} />
+                    <Metric label="Percent delta" value={trend.verdictDetails.primaryReason.deltaPercent === undefined ? "n/a" : `${Math.round(trend.verdictDetails.primaryReason.deltaPercent * 10) / 10}%`} />
+                    <Metric label="Driver" value={trend.verdictDetails.primaryReason.affectedPartName ?? `${product.brand} ${product.model}`} />
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -317,4 +328,10 @@ function verdictTone(verdict: string) {
 
 function formatCurrency(value: number) {
   return `$${Math.round(value).toLocaleString("en-US")}`;
+}
+
+function formatMaybeCurrency(value: number | undefined, forceCurrency = false) {
+  if (value === undefined) return "n/a";
+  if (forceCurrency || Math.abs(value) > 1) return formatCurrency(value);
+  return `${Math.round(value * 1000) / 10}%`;
 }
