@@ -25,10 +25,13 @@ export const generateBuildSchema = z.object({
   riskTolerance: z.enum(["new_only", "open_box_allowed", "used_allowed"]).default("open_box_allowed"),
 });
 
-export const dealsRefreshSchema = z
-  .object({
-    adapter: z.enum(["mock"]).default("mock"),
-  });
+export const dealsRefreshSchema = z.object({
+  productIds: z.array(z.string().min(1)).optional(),
+  categories: z.array(z.string().min(1)).optional(),
+  force: z.boolean().optional(),
+  allowDemoFallback: z.boolean().optional(),
+  riskTolerance: z.enum(["new_only", "open_box_allowed", "used_allowed"]).optional(),
+});
 
 export const buildVariantSchema = z.enum(["bestOverall", "cheapestSafe", "bestPerformancePerDollar"]);
 

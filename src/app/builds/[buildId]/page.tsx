@@ -18,7 +18,9 @@ import {
   priceVerdictLabel,
 } from "@/lib/builds/reportDetails";
 import { getPriceHistory } from "@/lib/data/catalog";
+import { LiveRefreshPanel } from "@/components/LiveRefreshPanel";
 import { formatHistoryDate } from "@/lib/pricing/buildPriceHistory";
+import { getRetailerConfig, isLiveMode } from "@/lib/retailers/config";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +41,9 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
   const worstDeal = [...build.productPriceTrends].sort(
     (left, right) => right.estimatedSavingsIfWaiting - left.estimatedSavingsIfWaiting,
   )[0];
+  const retailerConfig = getRetailerConfig();
+  const dataMode: "live" | "demo" = isLiveMode(retailerConfig) ? "live" : "demo";
+  const buildProductIds = buildCategories.map((category) => build.parts[category].id);
 
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
@@ -77,6 +82,14 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
           </div>
         </div>
       </section>
+
+      {dataMode === "demo" ? (
+        <div className="border-b border-amber-200 bg-amber-50">
+          <div className="mx-auto max-w-7xl px-4 py-3 text-sm text-amber-800 sm:px-6 lg:px-8">
+            Demo mode: using seeded PC parts, offers, and price history. Prices are not live.
+          </div>
+        </div>
+      ) : null}
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
         <Panel id="summary" title="Build Summary" icon={<FileText className="h-5 w-5 text-teal-700" />}>
@@ -129,6 +142,11 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
                   }
                 />
               </div>
+              {build.priceVerdictDetails.hasEnoughHistory === false ? (
+                <p className="text-xs text-amber-700">
+                  Not enough live price history yet. Showing current pricing plus demo/history fallback only; the 30-day trend is not overstated.
+                </p>
+              ) : null}
               <div className="grid gap-3 md:grid-cols-2">
                 {build.priceVerdictDetails.reasons.slice(0, 6).map((reason) => (
                   <div key={`${reason.code}-${reason.affectedPartId ?? "build"}`} className="rounded-md border border-zinc-200 bg-white p-4">
@@ -219,6 +237,9 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
             <Metric label="Risk penalties" value={formatCurrency(shoppingList.riskPenaltyTotal + shoppingList.conditionPenaltyTotal)} />
             <Metric label="Final effective total" value={formatCurrency(shoppingList.finalEffectiveTotal)} />
             <Metric label="Budget delta" value={budgetRemaining >= 0 ? `${formatCurrency(budgetRemaining)} left` : `${formatCurrency(Math.abs(budgetRemaining))} over`} />
+          </div>
+          <div className="mt-4">
+            <LiveRefreshPanel mode={dataMode} productIds={buildProductIds} />
           </div>
         </Panel>
 
