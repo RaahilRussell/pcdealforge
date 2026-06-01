@@ -5,7 +5,8 @@ import type { ProductCategory, ProductForCompatibility } from "@/lib/compatibili
 import type { ScoredOffer } from "@/lib/deals/types";
 import { getSavedBuild, listPrebuiltSystems } from "@/lib/data/catalog";
 import type { EvidenceCitation } from "@/lib/evidence/types";
-import type { PriceVerdict, PriceVerdictValue, ProductPriceTrend } from "@/lib/pricing/priceTrends";
+import type { BuildPriceVerdict } from "@/lib/pricing/buildPriceVerdict";
+import type { PriceVerdictValue, ProductPriceTrend } from "@/lib/pricing/priceTrends";
 import { buildShoppingList, type ShoppingList } from "@/lib/shopping/offers";
 import type { BuildTimingReport } from "@/lib/timing/types";
 
@@ -135,7 +136,7 @@ export function savedBuildToReportBuild(saved: NonNullable<Awaited<ReturnType<ty
     whySelected?: string;
     overallScore?: number;
     timingReport?: BuildTimingReport;
-    priceVerdictDetails?: PriceVerdict;
+    priceVerdictDetails?: BuildPriceVerdict;
   };
 
   const build = {
@@ -215,6 +216,46 @@ export function buildTypeLabel(buildType: string) {
 
 export function priceVerdictLabel(verdict: string) {
   return verdict.replaceAll("_", " ");
+}
+
+function whyThisVerdictMarkdown(verdict?: BuildPriceVerdict): string[] {
+  if (!verdict) return [];
+  const driverLabel =
+    verdict.driver === "compatibility"
+      ? "Compatibility-driven"
+      : verdict.driver === "seller-risk"
+        ? "Seller-risk-driven"
+        : verdict.driver === "release"
+          ? "Release-driven"
+          : "Price-driven";
+  const lines = [
+    `## Why This Verdict?`,
+    `Basis: ${driverLabel}`,
+    `Current full build total: ${formatCurrency(verdict.currentBuildTotal)}`,
+    `Full-build 30-day low: ${formatCurrency(verdict.build30DayLow)}`,
+    `Full-build 30-day average: ${formatCurrency(verdict.build30DayAverage)}`,
+    `Above 30-day low: ${formatCurrency(verdict.dollarsAbove30DayLow)} (${verdict.percentAbove30DayLow}%)`,
+    `Vs 30-day average: ${formatCurrency(verdict.dollarsAbove30DayAverage)} (${verdict.percentAbove30DayAverage}%)`,
+  ];
+  if (verdict.cheapestDayInLast30Days) {
+    lines.push(`Cheapest day in last 30 days: ${verdict.cheapestDayInLast30Days}`);
+  }
+  if (verdict.partCausingBiggestOverpay) {
+    lines.push(
+      `Main part causing overpay: ${verdict.partCausingBiggestOverpay.name} (+${formatCurrency(
+        verdict.partCausingBiggestOverpay.deltaDollars,
+      )} above its recent low)`,
+    );
+  }
+  if (verdict.bestDealPart) {
+    lines.push(
+      `Best-priced part: ${verdict.bestDealPart.name} (${formatCurrency(
+        verdict.bestDealPart.deltaDollars,
+      )} below its average)`,
+    );
+  }
+  lines.push(``);
+  return lines;
 }
 
 export function isSeededDemoUrl(url?: string | null) {
@@ -314,6 +355,7 @@ function buildMarkdownReport(
     `Verdict reason: ${build.priceVerdictDetails?.specificJustification ?? "Structured verdict reason unavailable."}`,
     `Data status: Seeded demo data unless a linked source says otherwise.`,
     ``,
+    ...whyThisVerdictMarkdown(build.priceVerdictDetails),
     `## Cost Breakdown`,
     `Subtotal: ${formatCurrency(costBreakdown.subtotal)}`,
     `Shipping: ${formatCurrency(costBreakdown.shippingTotal)}`,

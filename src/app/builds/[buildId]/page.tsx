@@ -18,6 +18,7 @@ import {
   priceVerdictLabel,
 } from "@/lib/builds/reportDetails";
 import { getPriceHistory } from "@/lib/data/catalog";
+import { formatHistoryDate } from "@/lib/pricing/buildPriceHistory";
 
 export const dynamic = "force-dynamic";
 
@@ -103,13 +104,30 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
                       {priceVerdictLabel(build.priceVerdict)}: {build.priceVerdictDetails.primaryReason.title}
                     </h3>
                   </div>
-                  <Badge>{verdictDriver(build.priceVerdictDetails.primaryReason.code)}</Badge>
+                  <Badge>{driverLabel(build.priceVerdictDetails.driver ?? verdictDriver(build.priceVerdictDetails.primaryReason.code))}</Badge>
                 </div>
                 <p className="mt-3 max-w-5xl text-sm leading-7 text-zinc-700">
                   {build.priceVerdictDetails.specificJustification}
                 </p>
                 <VerdictReasonMetrics reason={build.priceVerdictDetails.primaryReason} />
                 <EvidenceLinks evidenceIds={build.priceVerdictDetails.primaryReason.evidenceIds ?? []} />
+              </div>
+              <div className="grid gap-3 rounded-md border border-zinc-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Metric label="Current build total" value={formatCurrency(build.priceVerdictDetails.currentBuildTotal)} />
+                <Metric label="Full-build 30-day low" value={formatCurrency(build.priceVerdictDetails.build30DayLow)} />
+                <Metric label="Full-build 30-day average" value={formatCurrency(build.priceVerdictDetails.build30DayAverage)} />
+                <Metric label="Cheapest day (last 30d)" value={formatHistoryDate(build.priceVerdictDetails.cheapestDayInLast30Days) ?? "Not enough history"} />
+                <Metric label="vs 30-day low" value={signedCurrency(build.priceVerdictDetails.dollarsAbove30DayLow, build.priceVerdictDetails.percentAbove30DayLow)} />
+                <Metric label="vs 30-day average" value={signedCurrency(build.priceVerdictDetails.dollarsAbove30DayAverage, build.priceVerdictDetails.percentAbove30DayAverage)} />
+                <Metric label="Verdict basis" value={driverLabel(build.priceVerdictDetails.driver ?? "price")} />
+                <Metric
+                  label="Main part causing overpay"
+                  value={
+                    build.priceVerdictDetails.partCausingBiggestOverpay
+                      ? `${build.priceVerdictDetails.partCausingBiggestOverpay.name} (+${formatCurrency(build.priceVerdictDetails.partCausingBiggestOverpay.deltaDollars)})`
+                      : "None — build is near its low"
+                  }
+                />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {build.priceVerdictDetails.reasons.slice(0, 6).map((reason) => (
@@ -584,10 +602,22 @@ function EvidenceLinks({ evidenceIds }: { evidenceIds: string[] }) {
 }
 
 function verdictDriver(code: string) {
-  if (code.includes("compatibility")) return "Compatibility-driven";
-  if (code.includes("offer") || code.includes("confidence") || code.includes("risk")) return "Seller-risk-driven";
-  if (code.includes("release")) return "Release-driven";
+  if (code.includes("compatibility")) return "compatibility";
+  if (code.includes("offer") || code.includes("confidence") || code.includes("risk")) return "seller-risk";
+  if (code.includes("release")) return "release";
+  return "price";
+}
+
+function driverLabel(driver: string) {
+  if (driver === "compatibility") return "Compatibility-driven";
+  if (driver === "seller-risk") return "Seller-risk-driven";
+  if (driver === "release") return "Release-driven";
   return "Price-driven";
+}
+
+function signedCurrency(dollars: number, percent: number) {
+  const sign = dollars > 0 ? "+" : dollars < 0 ? "−" : "";
+  return `${sign}${formatCurrency(Math.abs(dollars))} (${Math.abs(percent)}%)`;
 }
 
 function reasonSeverityClass(severity: string) {

@@ -4,6 +4,7 @@ export type PriceVerdictValue = "BUY_NOW" | "WAIT" | "AVOID";
 
 export type VerdictReason = {
   severity: "positive" | "neutral" | "warning" | "danger";
+  scope?: "build" | "part" | "offer" | "compatibility" | "release";
   code: string;
   title: string;
   explanation: string;
@@ -13,6 +14,7 @@ export type VerdictReason = {
   deltaPercent?: number;
   affectedPartId?: string;
   affectedPartName?: string;
+  date?: string;
   evidenceIds?: string[];
 };
 
@@ -349,9 +351,13 @@ export function getBuildPriceReasons(build: BuildLike, partVerdicts: PriceVerdic
 
   for (const partVerdict of partVerdicts) {
     const primary = partVerdict.primaryReason;
-    if (primary.severity === "danger") {
+    // Only promote SERIOUS part-level risks (stock, confidence, risk tolerance) to the
+    // build level. A part merely being above its own price band must never force the whole
+    // build to AVOID — that is the over-reaction this engine is designed to prevent.
+    if (primary.severity === "danger" && seriousPartAvoidCodes.has(primary.code)) {
       reasons.push({
         ...primary,
+        scope: "offer",
         code: `part_${primary.code}`,
         title: `Part issue: ${primary.title}`,
       });
@@ -620,8 +626,17 @@ function unwrapOffer(offer: NormalizedOffer | ScoredOffer): NormalizedOffer {
 function isBuildAvoidCode(code: string) {
   if (buildAvoidCodes.has(code)) return true;
   if (!code.startsWith("part_")) return false;
-  return partAvoidCodes.has(code.replace(/^part_/, ""));
+  return seriousPartAvoidCodes.has(code.replace(/^part_/, ""));
 }
+
+// Serious, safety-grade part problems that justify avoiding the whole build. Price-band
+// codes (e.g. price_20_above_90_day_average) are intentionally excluded.
+const seriousPartAvoidCodes = new Set([
+  "offer_out_of_stock",
+  "offer_low_confidence",
+  "risk_tolerance_violation",
+  "risky_condition_small_savings",
+]);
 
 const partAvoidCodes = new Set([
   "offer_out_of_stock",

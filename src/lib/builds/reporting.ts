@@ -10,7 +10,7 @@ import { prisma } from "@/lib/db/prisma";
 import { attachEvidenceToBuildAnalysis } from "@/lib/evidence/evidenceMap";
 import { summarizeEvidence } from "@/lib/evidence/formatEvidence";
 import type { EvidenceCitation } from "@/lib/evidence/types";
-import { classifyBuildVerdict, getBuildPriceReasons } from "@/lib/pricing/verdictReasons";
+import { computeBuildPriceVerdict } from "@/lib/pricing/buildPriceVerdict";
 import { calculateBuildTimingReport } from "@/lib/timing/timingScore";
 import type { BuildTimingReport, ProductReleaseSignal } from "@/lib/timing/types";
 
@@ -92,12 +92,20 @@ export async function enhanceBuild(
     productPriceTrends: sourceBacked.priceReport.priceTrends,
     evidence: sourceBacked.evidence,
   };
-  const priceVerdictDetails = classifyBuildVerdict(
-    getBuildPriceReasons(
-      enhancedBuild,
-      enhancedBuild.productPriceTrends.map((trend) => trend.verdictDetails),
-    ),
+  const offersByProductId = new Map(
+    Object.values(enhancedBuild.offers).map((scored) => [scored.offer.productId ?? "", scored.offer]),
   );
+  const priceVerdictDetails = computeBuildPriceVerdict({
+    compatibilityStatus: enhancedBuild.compatibilityReport.overallStatus,
+    currentBuildTotal: enhancedBuild.totalPrice,
+    selectedOffers: enhancedBuild.productPriceTrends.map((trend) => ({
+      productId: trend.productId,
+      productName: trend.productName,
+      required: true,
+      offer: offersByProductId.get(trend.productId) ?? null,
+    })),
+    productTrends: enhancedBuild.productPriceTrends,
+  });
   const priceBackedBuild = {
     ...enhancedBuild,
     priceVerdict: priceVerdictDetails.verdict,

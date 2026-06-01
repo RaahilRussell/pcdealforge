@@ -1,10 +1,10 @@
 import { checkBuild } from "../compatibility/checkBuild";
 import type { BuildParts, ProductCategory } from "../compatibility/types";
 import { getBestSafeOffer } from "../deals/scoring";
+import { computeBuildPriceVerdict } from "../pricing/buildPriceVerdict";
 import { calculateProductPriceTrend } from "../pricing/priceTrends";
 import type { ProductPriceTrend } from "../pricing/priceTrends";
-import { classifyBuildVerdict, getBuildPriceReasons } from "../pricing/verdictReasons";
-import { buildPriceVerdict, calculateBuildPerformanceScore, calculateOverallScore } from "./scoring";
+import { calculateBuildPerformanceScore, calculateOverallScore } from "./scoring";
 import type {
   BuildOptimizerInput,
   BuildOptimizerResult,
@@ -61,17 +61,8 @@ export function generateBuilds(input: BuildOptimizerInput): BuildOptimizerResult
                   if (compatibilityReport.failCount > 0) continue;
 
                   const productPriceTrends = selected.map((item) => item.priceTrend);
-                  const potentialSavings = productPriceTrends.reduce(
-                    (sum, trend) => sum + trend.estimatedSavingsIfWaiting,
-                    0,
-                  );
                   const performanceScore = calculateBuildPerformanceScore({ parts }, input.useCase, input.resolution);
                   const dealScore = average(selected.map((item) => item.bestOffer.dealScore));
-                  const initialPriceVerdict = buildPriceVerdict(
-                    productPriceTrends.map((trend) => trend.verdict),
-                    potentialSavings,
-                    totalPrice,
-                  );
                   const overallScore = calculateOverallScore(
                     performanceScore,
                     dealScore,
@@ -79,21 +70,6 @@ export function generateBuilds(input: BuildOptimizerInput): BuildOptimizerResult
                     totalPrice,
                     input.budget,
                   );
-                  const priceVerdictDetails = classifyBuildVerdict(
-                    getBuildPriceReasons(
-                      {
-                        totalPrice,
-                        compatibilityReport,
-                        productPriceTrends,
-                      },
-                      productPriceTrends.map((trend) => trend.verdictDetails),
-                    ),
-                  );
-                  const priceVerdict =
-                    priceVerdictDetails.verdict === "BUY_NOW" && initialPriceVerdict === "WAIT"
-                      ? initialPriceVerdict
-                      : priceVerdictDetails.verdict;
-
                   candidates.push({
                     id: buildId(parts),
                     parts,
@@ -102,20 +78,9 @@ export function generateBuilds(input: BuildOptimizerInput): BuildOptimizerResult
                     performanceScore,
                     compatibilityReport,
                     dealScore,
-                    priceVerdict,
-                    priceVerdictDetails:
-                      priceVerdict === priceVerdictDetails.verdict
-                        ? priceVerdictDetails
-                        : classifyBuildVerdict([
-                            ...priceVerdictDetails.reasons,
-                            {
-                              severity: "warning",
-                              code: "build_multiple_wait_signals",
-                              title: "Multiple parts have weak price timing",
-                              explanation:
-                                "Multiple selected parts carry wait signals, so the full build is a WAIT even though no single issue reaches AVOID severity.",
-                            },
-                          ]),
+                    // The full build-level verdict is expensive (it reconstructs daily build totals),
+                    // so it is computed only for the few finalist builds below, never per candidate.
+                    priceVerdict: "WAIT",
                     productPriceTrends,
                     overallScore,
                     whySelected: "Candidate build is within budget and has no compatibility blockers.",
@@ -264,10 +229,31 @@ function decorateBuild(
   input: BuildOptimizerInput,
 ): GeneratedBuild | null {
   if (!build) return null;
+  const priceVerdictDetails = computeBuildPriceVerdict({
+    compatibilityStatus: build.compatibilityReport.overallStatus,
+    riskTolerance: input.riskTolerance,
+    currentBuildTotal: build.totalPrice,
+    selectedOffers: build.productPriceTrends.map((trend) => ({
+      productId: trend.productId,
+      productName: trend.productName,
+      required: true,
+      offer: offerForProduct(build, trend.productId),
+    })),
+    productTrends: build.productPriceTrends,
+  });
   return {
     ...build,
+    priceVerdict: priceVerdictDetails.verdict,
+    priceVerdictDetails,
     cheaperCompatibleSwaps: findCheaperCompatibleSwaps(build, pricedProducts, input).slice(0, 5),
   };
+}
+
+function offerForProduct(build: GeneratedBuild, productId: string) {
+  for (const scored of Object.values(build.offers)) {
+    if (scored.offer.productId === productId) return scored.offer;
+  }
+  return null;
 }
 
 function findCheaperCompatibleSwaps(

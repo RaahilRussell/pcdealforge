@@ -45,6 +45,8 @@ export type ProductPriceTrend = {
   verdict: PriceVerdictValue;
   verdictDetails: PriceVerdict;
   explanation: string;
+  /** Sorted daily price points, used to reconstruct full-build daily totals for the build verdict. */
+  history?: DailyPricePoint[];
   evidence?: EvidenceCitation[];
 };
 
@@ -124,6 +126,7 @@ export function calculateProductPriceTrend(input: ProductPriceTrendInput): Produ
     verdict: verdictDetails.verdict,
     verdictDetails,
     explanation: verdictDetails.specificJustification,
+    history,
   };
 }
 
