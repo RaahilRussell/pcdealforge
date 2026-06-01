@@ -102,19 +102,35 @@ model DailyProductPrice {
 model SavedBuild {
   id                  String   @id @default(cuid())
   name                String
+  buildType           String   @default("custom")
   targetBudget        Float
   useCase             String
   resolution          String
+  gpuPreference       String   @default("any")
+  riskTolerance       String   @default("open_box_allowed")
+  ramGb               Int      @default(32)
+  storageGb           Int      @default(1000)
+  wifiRequired        Boolean  @default(true)
   partsJson           String
+  offersJson          String   @default("{}")
+  priceSummaryJson    String   @default("{}")
+  compatibilityReportJson String @default("{}")
+  evidenceJson        String   @default("[]")
+  essayJson           String   @default("{}")
   totalPrice          Float
+  performanceScore    Float    @default(0)
   compatibilityStatus String
+  priceVerdict        String   @default("WAIT")
   dealScore           Float
+  candidateCount      Int?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   @@index([targetBudget])
   @@index([useCase])
+  @@index([buildType])
   @@index([compatibilityStatus])
+  @@index([priceVerdict])
 }
 
 model EvidenceSource {
@@ -158,4 +174,33 @@ model BuildEvidence {
   @@index([savedBuildId])
   @@index([claimType])
   @@index([evidenceSourceId])
+}
+
+model PrebuiltSystem {
+  id                  String   @id @default(cuid())
+  brand               String
+  model               String
+  retailer            String
+  url                 String
+  price               Float
+  condition           String
+  cpuName             String
+  gpuName             String
+  ramGb               Int
+  storageGb           Int
+  psuInfo             String?
+  motherboardInfo     String?
+  caseInfo            String?
+  coolingInfo         String?
+  warrantyInfo        String?
+  upgradeabilityScore Float
+  valueScore          Float
+  confidenceScore     Float
+  specsJson           String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([retailer])
+  @@index([price])
+  @@index([gpuName])
 }

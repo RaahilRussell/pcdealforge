@@ -1329,10 +1329,114 @@ const internalCalculationSources = [
   },
 ];
 
+const prebuilts = [
+  {
+    id: "prebuilt-cyberpower-ryzen-7600-rx-7800xt",
+    brand: "CyberPowerPC",
+    model: "Gamer Supreme RX 7800 XT Demo",
+    retailer: "Seeded Demo Retailer",
+    url: "/prebuilts/prebuilt-cyberpower-ryzen-7600-rx-7800xt",
+    price: 1399,
+    condition: "new",
+    cpuName: "AMD Ryzen 5 7600",
+    gpuName: "Radeon RX 7800 XT 16GB",
+    ramGb: 32,
+    storageGb: 2000,
+    psuInfo: "750W Gold, exact OEM model unknown",
+    motherboardInfo: "B650 WiFi class board, exact model unknown",
+    caseInfo: "Airflow mid-tower",
+    coolingInfo: "Tower air cooler",
+    warrantyInfo: "Seeded demo warranty placeholder",
+    upgradeabilityScore: 72,
+    valueScore: 83,
+    confidenceScore: 0.72,
+    specsJson: JSON.stringify({
+      hiddenRisks: ["Exact PSU model unknown", "Exact motherboard model unknown"],
+      comparisonNotes: "Similar GPU class to the seeded DIY 1440p builds with less component transparency.",
+    }),
+  },
+  {
+    id: "prebuilt-ibuypower-i5-14600k-rtx-4070s",
+    brand: "iBUYPOWER",
+    model: "TraceMesh RTX 4070 Super Demo",
+    retailer: "Seeded Demo Retailer",
+    url: "/prebuilts/prebuilt-ibuypower-i5-14600k-rtx-4070s",
+    price: 1599,
+    condition: "new",
+    cpuName: "Intel Core i5-14600K",
+    gpuName: "GeForce RTX 4070 Super 12GB",
+    ramGb: 32,
+    storageGb: 2000,
+    psuInfo: "750W 80+ Gold, exact connector details unknown",
+    motherboardInfo: "Z790/B760 class board, exact model unknown",
+    caseInfo: "Mesh mid-tower",
+    coolingInfo: "240mm AIO",
+    warrantyInfo: "Seeded demo warranty placeholder",
+    upgradeabilityScore: 68,
+    valueScore: 78,
+    confidenceScore: 0.7,
+    specsJson: JSON.stringify({
+      hiddenRisks: ["Exact PSU connector support unknown", "OEM motherboard may have fewer headers"],
+      comparisonNotes: "Higher CPU class and NVIDIA GPU option, but lower transparency than DIY.",
+    }),
+  },
+  {
+    id: "prebuilt-lenovo-legion-rtx-5060",
+    brand: "Lenovo",
+    model: "Legion Tower RTX 5060 Demo",
+    retailer: "Seeded Demo Retailer",
+    url: "/prebuilts/prebuilt-lenovo-legion-rtx-5060",
+    price: 999,
+    condition: "new",
+    cpuName: "Intel Core i5 class",
+    gpuName: "GeForce RTX 5060 8GB",
+    ramGb: 16,
+    storageGb: 1000,
+    psuInfo: "OEM PSU, wattage unknown",
+    motherboardInfo: "OEM board",
+    caseInfo: "OEM tower",
+    coolingInfo: "OEM air cooling",
+    warrantyInfo: "Seeded demo warranty placeholder",
+    upgradeabilityScore: 48,
+    valueScore: 70,
+    confidenceScore: 0.64,
+    specsJson: JSON.stringify({
+      hiddenRisks: ["Unknown PSU", "Possible proprietary motherboard/case", "16GB RAM may be single-channel"],
+      comparisonNotes: "Lower upfront cost, weaker upgrade transparency.",
+    }),
+  },
+  {
+    id: "prebuilt-maingear-rx-9070xt",
+    brand: "MAINGEAR",
+    model: "MG-1 RX 9070 XT Demo",
+    retailer: "Seeded Demo Retailer",
+    url: "/prebuilts/prebuilt-maingear-rx-9070xt",
+    price: 1999,
+    condition: "new",
+    cpuName: "AMD Ryzen 7 class",
+    gpuName: "Radeon RX 9070 XT 16GB",
+    ramGb: 32,
+    storageGb: 2000,
+    psuInfo: "850W Gold",
+    motherboardInfo: "B650/X870 class board",
+    caseInfo: "Premium airflow tower",
+    coolingInfo: "240mm AIO",
+    warrantyInfo: "Seeded demo warranty placeholder",
+    upgradeabilityScore: 82,
+    valueScore: 74,
+    confidenceScore: 0.76,
+    specsJson: JSON.stringify({
+      hiddenRisks: ["Higher prebuilt markup", "Exact board model should be verified"],
+      comparisonNotes: "Better support/warranty positioning, weaker raw value than DIY.",
+    }),
+  },
+];
+
 async function main() {
   await prisma.buildEvidence.deleteMany();
   await prisma.productEvidence.deleteMany();
   await prisma.evidenceSource.deleteMany();
+  await prisma.prebuiltSystem.deleteMany();
   await prisma.priceSnapshot.deleteMany();
   await prisma.dailyProductPrice.deleteMany();
   await prisma.offer.deleteMany();
@@ -1501,9 +1605,15 @@ async function main() {
     data: {
       id: "saved-build-balanced-1440p",
       name: "Seeded Balanced 1440p Build",
+      buildType: "custom",
       targetBudget: 1500,
       useCase: "gaming",
       resolution: "1440p",
+      gpuPreference: "any",
+      riskTolerance: "open_box_allowed",
+      ramGb: 32,
+      storageGb: 1000,
+      wifiRequired: true,
       partsJson: JSON.stringify({
         cpu: "cpu-ryzen-5-7600",
         gpu: "gpu-rx-7800-xt",
@@ -1514,11 +1624,21 @@ async function main() {
         case: "case-lian-li-lancool-216",
         cooler: "cooler-thermalright-peerless-assassin-120-se",
       }),
+      offersJson: "{}",
+      priceSummaryJson: "{}",
+      compatibilityReportJson: "{}",
+      evidenceJson: "[]",
+      essayJson: "{}",
       totalPrice: 1378,
+      performanceScore: 86,
       compatibilityStatus: "PASS",
+      priceVerdict: "BUY_NOW",
       dealScore: 86,
+      candidateCount: 0,
     },
   });
+
+  await prisma.prebuiltSystem.createMany({ data: prebuilts });
 
   await prisma.buildEvidence.createMany({
     data: [
@@ -1564,7 +1684,7 @@ async function main() {
 
   console.table(counts.map((count) => ({ category: count.category, products: count._count.id })));
   console.log(
-    `Seeded ${offers.length} offers, ${dailyRows.length} daily price rows, and ${productEvidenceRows.length} product evidence records.`,
+    `Seeded ${offers.length} offers, ${dailyRows.length} daily price rows, ${productEvidenceRows.length} product evidence records, and ${prebuilts.length} prebuilts.`,
   );
 }
 
