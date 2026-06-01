@@ -107,9 +107,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                     <dd className="text-zinc-800">
                       {formatSpecValue(value)}
                       {citation ? (
-                        <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
+                        <Link
+                          href={citation.evidenceId ? `/evidence/${citation.evidenceId}` : `/evidence/${citation.sourceId}`}
+                          className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:text-teal-800"
+                        >
                           [{citation.citationNumber}] Seeded demo source
-                        </span>
+                        </Link>
                       ) : null}
                     </dd>
                   </div>
@@ -167,9 +170,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                       </td>
                       <td className="py-3">
                         {offer.offer.url.includes("example.com") ? (
-                          <span className="text-zinc-500">Seeded demo listing</span>
+                          <Link className="font-medium text-teal-700 hover:text-teal-900" href={`/offers/${offer.offer.id}`}>
+                            Seeded demo listing
+                          </Link>
                         ) : (
-                          <a className="inline-flex items-center gap-1 text-teal-700 hover:text-teal-900" href={offer.offer.url}>
+                          <a className="inline-flex items-center gap-1 text-teal-700 hover:text-teal-900" href={offer.offer.url} target="_blank" rel="noopener noreferrer">
                             Open
                             <ExternalLink className="h-3.5 w-3.5" />
                           </a>

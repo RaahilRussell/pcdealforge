@@ -1,6 +1,10 @@
 "use client";
 
+import Link from "next/link";
+
 type EvidenceCitation = {
+  evidenceId?: string;
+  sourceId?: string;
   citationNumber: number;
   title: string;
   sourceType: string;
@@ -55,12 +59,19 @@ export function EvidenceCitationList({ citations }: { citations: EvidenceCitatio
               <span className="font-medium">Captured:</span> {new Date(citation.capturedAt).toLocaleDateString()}
             </div>
             {citation.url ? (
-              <a className="font-medium text-teal-700 hover:text-teal-900" href={citation.url}>
+              <a className="font-medium text-teal-700 hover:text-teal-900" href={citation.url} target="_blank" rel="noopener noreferrer">
                 Source URL
               </a>
             ) : (
               <div className="text-zinc-500">No external URL. This source is not presented as live web evidence.</div>
             )}
+            {citation.evidenceId ? (
+              <div className="mt-2">
+                <Link className="font-medium text-teal-700 hover:text-teal-900" href={`/evidence/${citation.evidenceId}`}>
+                  Open evidence record
+                </Link>
+              </div>
+            ) : null}
             {citation.notes ? <div className="mt-2 text-zinc-600">{citation.notes}</div> : null}
           </div>
         </details>

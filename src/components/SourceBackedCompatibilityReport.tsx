@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { EvidenceCitationList } from "./EvidenceCitationList";
 
 type Status = "PASS" | "WARNING" | "FAIL";
@@ -13,6 +15,8 @@ type CompatibilityResult = {
   confidence: number;
   ruleId: string;
   evidence: Array<{
+    evidenceId?: string;
+    sourceId?: string;
     citationNumber: number;
     title: string;
     sourceType: string;
@@ -42,12 +46,22 @@ export function SourceBackedCompatibilityReport({ results }: { results: Compatib
                 <p className="mt-2 text-sm leading-6 text-zinc-600">{result.explanation}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {result.evidence.map((citation) => (
-                    <span
+                    citation.evidenceId ? (
+                    <Link
                       key={`${result.id}-${citation.citationNumber}-${citation.claim}`}
+                      href={`/evidence/${citation.evidenceId}`}
                       className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700"
                     >
                       [{citation.citationNumber}] {citation.sourceType === "seeded_demo" ? "Seeded demo source" : citation.title}
-                    </span>
+                    </Link>
+                    ) : (
+                      <span
+                        key={`${result.id}-${citation.citationNumber}-${citation.claim}`}
+                        className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-700"
+                      >
+                        [{citation.citationNumber}] {citation.sourceType === "seeded_demo" ? "Seeded demo source" : citation.title}
+                      </span>
+                    )
                   ))}
                 </div>
               </div>

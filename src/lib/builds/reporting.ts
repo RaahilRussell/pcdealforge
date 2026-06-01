@@ -107,6 +107,8 @@ async function persistBuildVariant(
     productPriceTrends: build.productPriceTrends,
     sourceConfidenceSummary: build.sourceConfidenceSummary,
     cheaperCompatibleSwaps: build.cheaperCompatibleSwaps,
+    whySelected: build.whySelected,
+    overallScore: build.overallScore,
   };
 
   await prisma.savedBuild.upsert({

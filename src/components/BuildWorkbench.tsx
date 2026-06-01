@@ -24,6 +24,8 @@ type VariantKey = "bestOverall" | "cheapestSafe" | "bestPerformancePerDollar";
 type ReportTab = "Overview" | "Parts" | "Compatibility" | "Price History" | "Evidence" | "Full Essay";
 
 type EvidenceCitation = {
+  evidenceId?: string;
+  sourceId?: string;
   citationNumber: number;
   title: string;
   sourceType: string;
@@ -46,11 +48,17 @@ type Part = {
 
 type ScoredOffer = {
   offer: {
+    id: string;
     retailer: string;
     title: string;
     url: string;
+    price: number;
+    shipping: number;
+    taxEstimate: number;
     condition: string;
   };
+  sellerRiskPenalty?: number;
+  conditionRiskPenalty?: number;
   effectivePrice: number;
   dealScore: number;
 };
@@ -81,14 +89,19 @@ type ProductPriceTrend = {
 
 type BuildEssay = {
   executiveSummary: string;
+  whyThisBuildExists?: string;
+  performanceExpectations?: string;
   positives: string;
   negatives: string;
   compatibilityReasoning: string;
   dealReasoning: string;
+  partByPartJustification?: string;
+  bestUpgradePath?: string;
   whoShouldBuy: string;
   whoShouldAvoid: string;
   suggestedSwaps: string;
   finalVerdict: string;
+  finalRecommendation?: string;
   citations: EvidenceCitation[];
 };
 
@@ -248,7 +261,7 @@ export function BuildWorkbench() {
 
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
-      <section className="border-b border-zinc-200 bg-white">
+      <section id="builder" className="border-b border-zinc-200 bg-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
           <div className="flex min-h-[420px] flex-col justify-center">
             <div className="mb-5 flex items-center gap-3 text-sm font-medium text-teal-700">
@@ -365,25 +378,32 @@ export function BuildWorkbench() {
           <div className="grid gap-8">
             <div className="grid gap-4 lg:grid-cols-3">
               {visibleVariants.map(({ key, build }) => (
-                <button
+                <div
                   key={key}
-                  onClick={() => setActiveVariant(key)}
                   className={`rounded-lg border p-5 text-left shadow-sm transition ${
                     activeVariant === key ? "border-teal-700 bg-white" : "border-zinc-200 bg-white hover:border-zinc-400"
                   }`}
                 >
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <h2 className="text-lg font-semibold">{variantLabels[key]}</h2>
-                    <StatusPill status={build.compatibilityReport.overallStatus} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <Metric label="Total" value={formatCurrency(build.totalPrice)} />
-                    <Metric label="Performance" value={Math.round(build.performanceScore).toString()} />
-                    <Metric label="Deal score" value={Math.round(build.dealScore).toString()} />
-                    <Metric label="Verdict" value={formatVerdict(build.priceVerdict)} tone={verdictTone(build.priceVerdict)} />
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-zinc-600">{build.whySelected}</p>
-                </button>
+                  <button onClick={() => setActiveVariant(key)} className="w-full text-left">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <h2 className="text-lg font-semibold">{variantLabels[key]}</h2>
+                      <StatusPill status={build.compatibilityReport.overallStatus} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <Metric label="Total" value={formatCurrency(build.totalPrice)} />
+                      <Metric label="Performance" value={Math.round(build.performanceScore).toString()} />
+                      <Metric label="Deal score" value={Math.round(build.dealScore).toString()} />
+                      <Metric label="Verdict" value={formatVerdict(build.priceVerdict)} tone={verdictTone(build.priceVerdict)} />
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-zinc-600">{build.whySelected}</p>
+                  </button>
+                  <Link
+                    href={`/builds/${build.id}`}
+                    className="mt-4 inline-flex h-9 items-center justify-center rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800"
+                  >
+                    Open full report
+                  </Link>
+                </div>
               ))}
             </div>
 
@@ -482,6 +502,16 @@ function BuildReportTab({
             {build.sourceConfidenceSummary?.compatibilityRuleCount ?? 0} compatibility rule sources. Seeded demo sources
             are local MVP records, not live web claims.
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link className="rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800" href={`/builds/${build.id}`}>
+              Open full report
+            </Link>
+            {categories.map((category) => (
+              <Link key={category} className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-teal-700 ring-1 ring-zinc-200 hover:text-teal-900" href={`/products/${build.parts[category].id}`}>
+                {categoryLabels[category]}
+              </Link>
+            ))}
+          </div>
         </div>
         {comparison ? (
           <div className="grid gap-3 rounded-md border border-zinc-200 bg-white p-4">
@@ -522,7 +552,14 @@ function BuildReportTab({
     return <EvidenceCitationList citations={build.evidence ?? build.essay?.citations ?? []} />;
   }
 
-  return <EssayReport essay={build.essay} />;
+  return (
+    <div className="grid gap-4">
+      <Link className="w-fit rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800" href={`/builds/${build.id}#essay`}>
+        Open full report
+      </Link>
+      <EssayReport essay={build.essay} />
+    </div>
+  );
 }
 
 function EssayReport({ essay }: { essay?: BuildEssay }) {
@@ -532,15 +569,19 @@ function EssayReport({ essay }: { essay?: BuildEssay }) {
 
   const sections = [
     ["Executive Summary", essay.executiveSummary],
+    ["Why This Build Exists", essay.whyThisBuildExists],
+    ["Performance Expectations", essay.performanceExpectations],
     ["Major Positives", essay.positives],
     ["Major Negatives", essay.negatives],
     ["Compatibility Reasoning", essay.compatibilityReasoning],
     ["Deal/Price Reasoning", essay.dealReasoning],
+    ["Part-by-Part Justification", essay.partByPartJustification],
+    ["Best Upgrade Path", essay.bestUpgradePath],
     ["Who Should Buy", essay.whoShouldBuy],
     ["Who Should Avoid", essay.whoShouldAvoid],
     ["Suggested Swaps", essay.suggestedSwaps],
-    ["Final Verdict", essay.finalVerdict],
-  ];
+    ["Final Recommendation", essay.finalRecommendation ?? essay.finalVerdict],
+  ].filter((section): section is [string, string] => Boolean(section[1]));
 
   return (
     <div className="grid gap-5">
@@ -561,16 +602,20 @@ function EssayReport({ essay }: { essay?: BuildEssay }) {
 function PartsTable({ build }: { build: GeneratedBuild }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[900px] border-collapse text-sm">
+      <table className="w-full min-w-[1200px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-normal text-zinc-500">
             <th className="py-3 pr-4 font-semibold">Category</th>
-            <th className="py-3 pr-4 font-semibold">Selected part</th>
-            <th className="py-3 pr-4 font-semibold">Best offer</th>
-            <th className="py-3 pr-4 font-semibold">Price</th>
-            <th className="py-3 pr-4 font-semibold">Retailer</th>
+            <th className="py-3 pr-4 font-semibold">Product link</th>
+            <th className="py-3 pr-4 font-semibold">Why selected</th>
+            <th className="py-3 pr-4 font-semibold">Retailer/offer</th>
+            <th className="py-3 pr-4 font-semibold">Base</th>
+            <th className="py-3 pr-4 font-semibold">Shipping</th>
+            <th className="py-3 pr-4 font-semibold">Tax</th>
+            <th className="py-3 pr-4 font-semibold">Effective</th>
             <th className="py-3 pr-4 font-semibold">Compatibility note</th>
-            <th className="py-3 font-semibold">Price verdict</th>
+            <th className="py-3 pr-4 font-semibold">Price verdict</th>
+            <th className="py-3 font-semibold">Swap</th>
           </tr>
         </thead>
         <tbody>
@@ -579,6 +624,7 @@ function PartsTable({ build }: { build: GeneratedBuild }) {
             const offer = build.offers[category];
             const trend = build.productPriceTrends.find((item) => item.productId === part.id);
             const note = compatibilityNote(build, category);
+            const link = offerHref(offer.offer);
 
             return (
               <tr key={category} className="border-b border-zinc-100">
@@ -588,9 +634,23 @@ function PartsTable({ build }: { build: GeneratedBuild }) {
                     {part.brand} {part.model}
                   </Link>
                 </td>
-                <td className="py-3 pr-4 text-zinc-600">{offer.offer.title}</td>
+                <td className="py-3 pr-4 text-zinc-600">{shortPartReason(category, build)}</td>
+                <td className="py-3 pr-4">
+                  {link.external ? (
+                    <a className="font-medium text-teal-700 hover:text-teal-900" href={link.href} target="_blank" rel="noopener noreferrer">
+                      {offer.offer.retailer}
+                    </a>
+                  ) : (
+                    <Link className="font-medium text-teal-700 hover:text-teal-900" href={link.href}>
+                      {offer.offer.retailer}
+                    </Link>
+                  )}
+                  <div className="mt-1 text-xs text-zinc-500">{offer.offer.condition.replaceAll("_", " ")}</div>
+                </td>
+                <td className="py-3 pr-4">{formatCurrency(offer.offer.price)}</td>
+                <td className="py-3 pr-4">{formatCurrency(offer.offer.shipping)}</td>
+                <td className="py-3 pr-4">{formatCurrency(offer.offer.taxEstimate)}</td>
                 <td className="py-3 pr-4 font-semibold">{formatCurrency(offer.effectivePrice)}</td>
-                <td className="py-3 pr-4 text-zinc-600">{offer.offer.retailer}</td>
                 <td className="py-3 pr-4">
                   <span className={note.level === "PASS" ? "text-emerald-700" : note.level === "WARNING" ? "text-amber-700" : "text-rose-700"}>
                     {note.title}
@@ -599,6 +659,11 @@ function PartsTable({ build }: { build: GeneratedBuild }) {
                 <td className="py-3">
                   <VerdictPill verdict={trend?.verdict ?? "BUY_NOW"} />
                 </td>
+                <td className="py-3">
+                  <button type="button" className="rounded-md bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-500">
+                    Swap
+                  </button>
+                </td>
               </tr>
             );
           })}
@@ -606,6 +671,32 @@ function PartsTable({ build }: { build: GeneratedBuild }) {
       </table>
     </div>
   );
+}
+
+function shortPartReason(category: Category, build: GeneratedBuild) {
+  const part = build.parts[category];
+  if (category === "gpu") return `${part.model} is the main performance driver for this recommendation.`;
+  if (category === "cpu") return `${part.model} balances platform cost with the selected GPU.`;
+  if (category === "motherboard") return "Matches CPU socket, RAM type, case form factor, and feature constraints.";
+  if (category === "ram") return "Meets requested memory capacity and motherboard DDR type.";
+  if (category === "storage") return "Meets requested capacity and uses the board storage path.";
+  if (category === "psu") return "Clears wattage headroom and GPU connector rules.";
+  if (category === "case") return "Provides motherboard, GPU, cooler, airflow, and front I/O fit data.";
+  return "Supports CPU socket and fits the selected case cooling constraints.";
+}
+
+function offerHref(offer: ScoredOffer["offer"]) {
+  if (!offer.id || seededDemoUrl(offer.url)) return { href: offer.id ? `/offers/${offer.id}` : "#", external: false };
+  return { href: offer.url, external: true };
+}
+
+function seededDemoUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === "example.com" || parsed.hostname.endsWith(".example.com");
+  } catch {
+    return true;
+  }
 }
 
 function Select({

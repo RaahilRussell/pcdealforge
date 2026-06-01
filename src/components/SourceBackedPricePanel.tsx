@@ -12,6 +12,8 @@ type PriceTrend = {
   verdict: "BUY_NOW" | "WAIT" | "AVOID";
   explanation: string;
   evidence?: Array<{
+    evidenceId?: string;
+    sourceId?: string;
     citationNumber: number;
     title: string;
     sourceType: string;

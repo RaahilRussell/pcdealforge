@@ -1,18 +1,24 @@
 import type { EvidenceCitation } from "@/lib/evidence/types";
 import { citationMarker } from "@/lib/evidence/formatEvidence";
 
+import { explainPartChoices } from "./partExplanations";
 import type { GeneratedBuild } from "./types";
 
 export type BuildEssay = {
   executiveSummary: string;
+  whyThisBuildExists: string;
+  performanceExpectations: string;
   positives: string;
   negatives: string;
   compatibilityReasoning: string;
   dealReasoning: string;
+  partByPartJustification: string;
+  bestUpgradePath: string;
   whoShouldBuy: string;
   whoShouldAvoid: string;
   suggestedSwaps: string;
   finalVerdict: string;
+  finalRecommendation: string;
   citations: EvidenceCitation[];
 };
 
@@ -27,6 +33,7 @@ export function generateBuildEssay(build: GeneratedBuild, suppliedCitations: Evi
   const pcCase = build.parts.case;
   const cooler = build.parts.cooler;
   const warningCount = build.compatibilityReport.warningCount;
+  const partExplanations = explainPartChoices(build);
   const strongestDeal = [...build.productPriceTrends].sort((left, right) => left.currentPrice - right.currentPrice)[0];
   const weakestPrice = [...build.productPriceTrends].sort(
     (left, right) => right.estimatedSavingsIfWaiting - left.estimatedSavingsIfWaiting,
@@ -42,6 +49,17 @@ export function generateBuildEssay(build: GeneratedBuild, suppliedCitations: Evi
   }, and the build-level price verdict is ${formatVerdict(
     build.priceVerdict,
   )}. These statements are based on seeded demo product evidence, seeded demo offer/history data, and internal PCDealForge calculations rather than live retailer or manufacturer feeds. ${marker}`;
+
+  const whyThisBuildExists = `Why this build exists: the optimizer searched seeded CPU, GPU, motherboard, memory, storage, PSU, case, and cooler combinations under ${currency(
+    build.totalPrice,
+  )} effective total and rejected candidates with compatibility failures. This specific build survived because the selected parts satisfy the required memory capacity, storage capacity, Wi-Fi preference, risk tolerance, and budget constraints while producing a stronger overall score than nearby alternatives. The reason is not a black-box opinion: the score combines performance, deal score, compatibility confidence, and budget efficiency, then subtracts compatibility warning penalties. ${marker}`;
+
+  const performanceExpectations = `Performance expectations: the ${gpu.brand} ${gpu.model} carries most of the gaming performance weight, while the ${cpu.brand} ${cpu.model} is selected to keep the platform from becoming an obvious CPU bottleneck in the seeded scoring model. The build includes ${specNumber(
+    ram,
+    "capacityGb",
+  )}GB of RAM and ${specNumber(storage, "capacityGb")}GB of storage, so it is aimed at mainstream gaming and general productivity rather than heavy local AI workloads or uncompromised 4K ultra settings. The ${build.performanceScore.toFixed(
+    0,
+  )} performance score is seeded demo benchmark architecture, not a live benchmark feed. ${marker}`;
 
   const positives = `Major positives: the CPU and GPU pairing is balanced for the selected performance target, the ${ram.model} memory kit and ${storage.model} storage meet the requested capacity constraints, and the ${pcCase.model} plus ${cooler.model} combination gives the compatibility engine enough case and cooling data to verify fit. The ${psu.model} is evaluated for wattage headroom and GPU power connector support, while the deal score of ${build.dealScore.toFixed(
     0,
@@ -73,6 +91,12 @@ export function generateBuildEssay(build: GeneratedBuild, suppliedCitations: Evi
     build.priceVerdict,
   )}. ${marker}`;
 
+  const partByPartJustification = `Part-by-part justification: ${Object.values(partExplanations)
+    .map((part) => part.shortReason)
+    .join(" ")} The selected offer for each part is included in the effective total, so the recommendation is based on the actual seeded offer rows instead of MSRP-only catalog data. ${marker}`;
+
+  const bestUpgradePath = `Best upgrade path: the cleanest first upgrade is usually the GPU if the buyer wants higher frame rates, followed by storage if the chosen drive is under 2TB. The PSU and case are important because they determine how painless those upgrades are; this build's PSU headroom and case clearance are explicitly checked before recommendation. A buyer who wants a longer platform life should inspect the motherboard chipset, M.2 slot count, and Wi-Fi/front USB-C support before trading down to a cheaper board. ${marker}`;
+
   const whoShouldBuy = `Who should buy this: it is best for a buyer who wants a transparent, compatibility-checked desktop recommendation from seeded demo data and values a strong GPU-first build without manually comparing every offer. It is most appropriate for a mainstream gamer, student, or general enthusiast who wants a clear parts list, visible price risks, and a citation-backed explanation before doing final live retailer checks. ${marker}`;
 
   const whoShouldAvoid = `Who should avoid this: skip this exact recommendation if you require verified live retailer inventory, real manufacturer source pages, a silence-focused small-form-factor build, heavy AI/ML VRAM capacity, or uncompromised 4K ultra gaming. Buyers who refuse any open-box risk should also keep risk tolerance at new-only and re-run the optimizer. ${marker}`;
@@ -85,17 +109,25 @@ export function generateBuildEssay(build: GeneratedBuild, suppliedCitations: Evi
       : `Suggested swaps: the optimizer did not find a cheaper compatible swap inside the searched seeded candidate pool. A better performance swap would usually mean spending more on the GPU first, while a safer retailer swap means preferring higher-confidence new listings over low-confidence used listings. ${marker}`;
 
   const finalVerdict = `${finalVerdictLabel(build.priceVerdict)} The conclusion follows the build-level price verdict, compatibility report, seeded offer data, and deterministic scoring formulas. ${marker}`;
+  const finalRecommendation = `${finalVerdictLabel(
+    build.priceVerdict,
+  )} If this were a real purchase, the next step would be to open each selected offer, verify the live retailer price and exact model, and confirm that seeded demo sources have been replaced with manufacturer, retailer, benchmark, or validated API data. Within the MVP data, this is a traceable recommendation rather than a live-market guarantee. ${marker}`;
 
   return {
     executiveSummary,
+    whyThisBuildExists,
+    performanceExpectations,
     positives,
     negatives,
     compatibilityReasoning,
     dealReasoning,
+    partByPartJustification,
+    bestUpgradePath,
     whoShouldBuy,
     whoShouldAvoid,
     suggestedSwaps,
     finalVerdict,
+    finalRecommendation,
     citations,
   };
 }
@@ -137,4 +169,9 @@ function formatVerdict(verdict: string) {
 
 function currency(value: number) {
   return `$${Math.round(value).toLocaleString("en-US")}`;
+}
+
+function specNumber(part: { specs: Record<string, unknown> }, key: string) {
+  const value = part.specs[key];
+  return typeof value === "number" ? value : 0;
 }
