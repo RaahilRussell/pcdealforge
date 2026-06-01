@@ -9,6 +9,8 @@ export type EvidenceSourceType =
   | "internal_calculation";
 
 export type EvidenceCitation = {
+  evidenceId?: string;
+  sourceId?: string;
   citationNumber: number;
   title: string;
   sourceType: EvidenceSourceType | string;

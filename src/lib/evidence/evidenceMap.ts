@@ -33,6 +33,8 @@ export async function getInternalCalculationEvidence(sourceIds: string[]) {
   });
 
   return sources.map((source, index) => ({
+    evidenceId: source.id,
+    sourceId: source.id,
     citationNumber: index + 1,
     title: source.title,
     sourceType: source.sourceType,
@@ -216,6 +218,8 @@ async function hydrateProductEvidence(rows: Array<{
 function userConstraintCitation(claim: string): EvidenceCitation[] {
   return [
     {
+      evidenceId: undefined,
+      sourceId: undefined,
       citationNumber: 0,
       title: "User constraint",
       sourceType: "user_constraint",

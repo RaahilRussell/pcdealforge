@@ -2,6 +2,8 @@ import type { EvidenceCitation, ProductEvidenceRecord } from "./types";
 
 export function formatEvidenceCitation(record: ProductEvidenceRecord, citationNumber: number): EvidenceCitation {
   return {
+    evidenceId: record.id,
+    sourceId: record.source.id,
     citationNumber,
     title: record.source.sourceType === "seeded_demo" ? "Seeded demo source" : record.source.title,
     sourceType: record.source.sourceType,
