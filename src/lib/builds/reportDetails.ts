@@ -6,6 +6,8 @@ import type { ScoredOffer } from "@/lib/deals/types";
 import { getSavedBuild, listPrebuiltSystems } from "@/lib/data/catalog";
 import type { EvidenceCitation } from "@/lib/evidence/types";
 import type { PriceVerdict, ProductPriceTrend } from "@/lib/pricing/priceTrends";
+import { buildShoppingList, type ShoppingList } from "@/lib/shopping/offers";
+import type { BuildTimingReport } from "@/lib/timing/types";
 
 export const buildCategories: ProductCategory[] = [
   "cpu",
@@ -39,6 +41,7 @@ export type ReportBuild = GeneratedBuild & {
     internalCalculationCount: number;
     compatibilityRuleCount: number;
   };
+  timingReport?: BuildTimingReport;
 };
 
 export type CostBreakdownRow = {
@@ -86,6 +89,7 @@ export type FullBuildReport = {
   compatibilityDeepDive: CompatibilityDeepDiveRow[];
   markdown: string;
   prebuiltComparison: PrebuiltComparison;
+  shoppingList: ShoppingList;
 };
 
 export async function getBuildReport(buildId: string): Promise<FullBuildReport | null> {
@@ -95,6 +99,18 @@ export async function getBuildReport(buildId: string): Promise<FullBuildReport |
   const build = savedBuildToReportBuild(saved);
   const costBreakdown = calculateCostBreakdown(build);
   const partExplanations = explainPartChoices(build);
+  const shoppingList = buildShoppingList(
+    build.parts,
+    build.offers,
+    Object.fromEntries(
+      buildCategories.map((category) => [
+        category,
+        partExplanations[category].evidence.find((citation) => citation.evidenceId)?.evidenceId
+          ? `/evidence/${partExplanations[category].evidence.find((citation) => citation.evidenceId)?.evidenceId}`
+          : null,
+      ]),
+    ),
+  );
   const compatibilityDeepDive = buildCompatibilityDeepDive(build, saved.wifiRequired);
   const prebuiltComparison = await compareToPrebuilts(build);
   const markdown = buildMarkdownReport(saved, build, costBreakdown, compatibilityDeepDive, prebuiltComparison);
@@ -107,6 +123,7 @@ export async function getBuildReport(buildId: string): Promise<FullBuildReport |
     compatibilityDeepDive,
     markdown,
     prebuiltComparison,
+    shoppingList,
   };
 }
 
@@ -117,6 +134,7 @@ export function savedBuildToReportBuild(saved: NonNullable<Awaited<ReturnType<ty
     cheaperCompatibleSwaps?: GeneratedBuild["cheaperCompatibleSwaps"];
     whySelected?: string;
     overallScore?: number;
+    timingReport?: BuildTimingReport;
   };
 
   const build = {
@@ -135,6 +153,7 @@ export function savedBuildToReportBuild(saved: NonNullable<Awaited<ReturnType<ty
     essay: saved.essay as BuildEssay,
     evidence: saved.evidence as EvidenceCitation[],
     sourceConfidenceSummary: priceSummary.sourceConfidenceSummary,
+    timingReport: priceSummary.timingReport as BuildTimingReport | undefined,
   };
 
   return build;

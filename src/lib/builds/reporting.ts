@@ -1,14 +1,17 @@
 import { generateBuilds } from "@/lib/builds/generateBuilds";
 import { generateBuildEssay } from "@/lib/builds/buildEssay";
 import { compareBuilds } from "@/lib/builds/compareBuilds";
+import { generateRecommendationCategories, type BuildRecommendationCategory } from "@/lib/builds/recommendationCategories";
 import type { BuildEssay } from "@/lib/builds/buildEssay";
 import type { BuildComparisonReport } from "@/lib/builds/compareBuilds";
 import type { BuildOptimizerInput, BuildOptimizerResult, GeneratedBuild } from "@/lib/builds/types";
-import { getOptimizerCatalog } from "@/lib/data/catalog";
+import { getOptimizerCatalog, listPrebuiltSystems, listReleaseSignals } from "@/lib/data/catalog";
 import { prisma } from "@/lib/db/prisma";
 import { attachEvidenceToBuildAnalysis } from "@/lib/evidence/evidenceMap";
 import { summarizeEvidence } from "@/lib/evidence/formatEvidence";
 import type { EvidenceCitation } from "@/lib/evidence/types";
+import { calculateBuildTimingReport } from "@/lib/timing/timingScore";
+import type { BuildTimingReport, ProductReleaseSignal } from "@/lib/timing/types";
 
 export type BuildVariantKey = "bestOverall" | "cheapestSafe" | "bestPerformancePerDollar";
 type BuildRequestInput = Omit<BuildOptimizerInput, "products" | "offersByProductId" | "historiesByProductId">;
@@ -17,6 +20,7 @@ export type EnhancedGeneratedBuild = GeneratedBuild & {
   essay: BuildEssay;
   evidence: EvidenceCitation[];
   sourceConfidenceSummary: ReturnType<typeof summarizeEvidence>;
+  timingReport?: BuildTimingReport;
 };
 
 export type EnhancedBuildResult = Omit<BuildOptimizerResult, BuildVariantKey> & {
@@ -24,6 +28,7 @@ export type EnhancedBuildResult = Omit<BuildOptimizerResult, BuildVariantKey> & 
   cheapestSafe: EnhancedGeneratedBuild | null;
   bestPerformancePerDollar: EnhancedGeneratedBuild | null;
   comparison: BuildComparisonReport | null;
+  recommendationCategories: BuildRecommendationCategory[];
 };
 
 export async function generateSourceBackedBuilds(
@@ -34,21 +39,22 @@ export async function generateSourceBackedBuilds(
     ...input,
     ...catalog,
   });
+  const [releaseSignals, prebuilts] = await Promise.all([listReleaseSignals(), listPrebuiltSystems()]);
 
   const bestOverall = await persistBuildVariant(
-    await enhanceBuild(applySpecificReason(result.bestOverall, "bestOverall", input)),
+    await enhanceBuild(applySpecificReason(result.bestOverall, "bestOverall", input), releaseSignals),
     "bestOverall",
     input,
     result.candidatesEvaluated,
   );
   const cheapestSafe = await persistBuildVariant(
-    await enhanceBuild(applySpecificReason(result.cheapestSafe, "cheapestSafe", input)),
+    await enhanceBuild(applySpecificReason(result.cheapestSafe, "cheapestSafe", input), releaseSignals),
     "cheapestSafe",
     input,
     result.candidatesEvaluated,
   );
   const bestPerformancePerDollar = await persistBuildVariant(
-    await enhanceBuild(applySpecificReason(result.bestPerformancePerDollar, "bestPerformancePerDollar", input)),
+    await enhanceBuild(applySpecificReason(result.bestPerformancePerDollar, "bestPerformancePerDollar", input), releaseSignals),
     "bestPerformancePerDollar",
     input,
     result.candidatesEvaluated,
@@ -57,6 +63,10 @@ export async function generateSourceBackedBuilds(
     bestOverall && cheapestSafe && bestPerformancePerDollar
       ? compareBuilds({ bestOverall, cheapestSafe, bestPerformancePerDollar })
       : null;
+  const recommendationCategories = generateRecommendationCategories({
+    builds: [bestOverall, cheapestSafe, bestPerformancePerDollar].filter(Boolean) as EnhancedGeneratedBuild[],
+    prebuilts,
+  });
 
   return {
     bestOverall,
@@ -64,10 +74,14 @@ export async function generateSourceBackedBuilds(
     bestPerformancePerDollar,
     candidatesEvaluated: result.candidatesEvaluated,
     comparison,
+    recommendationCategories,
   };
 }
 
-export async function enhanceBuild(build: GeneratedBuild | null): Promise<EnhancedGeneratedBuild | null> {
+export async function enhanceBuild(
+  build: GeneratedBuild | null,
+  releaseSignals: ProductReleaseSignal[] = [],
+): Promise<EnhancedGeneratedBuild | null> {
   if (!build) return null;
 
   const sourceBacked = await attachEvidenceToBuildAnalysis(build);
@@ -77,6 +91,7 @@ export async function enhanceBuild(build: GeneratedBuild | null): Promise<Enhanc
     productPriceTrends: sourceBacked.priceReport.priceTrends,
     evidence: sourceBacked.evidence,
   };
+  const timingReport = calculateBuildTimingReport(enhancedBuild, releaseSignals);
   const essay = generateBuildEssay(enhancedBuild, sourceBacked.evidence);
   const evidence = essay.citations;
 
@@ -85,6 +100,7 @@ export async function enhanceBuild(build: GeneratedBuild | null): Promise<Enhanc
     essay,
     evidence,
     sourceConfidenceSummary: summarizeEvidence(evidence),
+    timingReport,
   };
 }
 
@@ -109,6 +125,7 @@ async function persistBuildVariant(
     cheaperCompatibleSwaps: build.cheaperCompatibleSwaps,
     whySelected: build.whySelected,
     overallScore: build.overallScore,
+    timingReport: build.timingReport,
   };
 
   await prisma.savedBuild.upsert({
