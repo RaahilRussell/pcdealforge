@@ -8,6 +8,8 @@
 
 export type RetailerConfig = {
   liveRetailerMode: boolean;
+  /** Live Link Mode: generate real retailer links for every part and verify prices best-effort, no keys required. */
+  liveLinkMode: boolean;
   demoMode: boolean;
   bestBuyApiKey?: string;
   ebayClientId?: string;
@@ -32,11 +34,14 @@ export type RetailerEnv = Record<string, string | undefined>;
 
 export function getRetailerConfig(env: RetailerEnv = process.env): RetailerConfig {
   const live = flag(env.LIVE_RETAILER_MODE) ?? false;
-  // Demo mode is on by default unless live mode is explicitly enabled. An explicit DEMO_MODE wins.
-  const demo = flag(env.DEMO_MODE) ?? !live;
+  // Live Link Mode is the default experience: real retailer links for every part, no keys required.
+  const liveLink = flag(env.LIVE_LINK_MODE) ?? true;
+  // Demo mode is off by default; it only turns on when explicitly set, or when both live modes are off.
+  const demo = flag(env.DEMO_MODE) ?? !(live || liveLink);
 
   return {
     liveRetailerMode: live,
+    liveLinkMode: liveLink && !demo,
     demoMode: demo,
     bestBuyApiKey: trimmed(env.BESTBUY_API_KEY),
     ebayClientId: trimmed(env.EBAY_CLIENT_ID),

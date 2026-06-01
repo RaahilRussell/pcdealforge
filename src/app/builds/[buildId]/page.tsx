@@ -20,7 +20,11 @@ import {
 import { getPriceHistory } from "@/lib/data/catalog";
 import { LiveRefreshPanel } from "@/components/LiveRefreshPanel";
 import { formatHistoryDate } from "@/lib/pricing/buildPriceHistory";
-import { getRetailerConfig, isLiveMode } from "@/lib/retailers/config";
+import { getRetailerConfig } from "@/lib/retailers/config";
+import { buildLiveShopping } from "@/lib/liveLinks/buildLiveShopping";
+import { liveVerdictLabel } from "@/lib/liveLinks/buildLiveTotal";
+import { RETAILER_ORDER } from "@/lib/liveLinks/retailers";
+import type { LiveProduct } from "@/lib/liveLinks/types";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +46,16 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
     (left, right) => right.estimatedSavingsIfWaiting - left.estimatedSavingsIfWaiting,
   )[0];
   const retailerConfig = getRetailerConfig();
-  const dataMode: "live" | "demo" = isLiveMode(retailerConfig) ? "live" : "demo";
+  const demoMode = retailerConfig.demoMode;
+  const liveLinkMode = retailerConfig.liveLinkMode;
+  const dataMode: "live" | "demo" = liveLinkMode ? "live" : "demo";
   const buildProductIds = buildCategories.map((category) => build.parts[category].id);
+  const liveShopping = buildLiveShopping(
+    buildCategories.map((category) => ({
+      category,
+      product: toLiveProduct(build.parts[category], build.offers[category]?.effectivePrice),
+    })),
+  );
 
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
@@ -83,15 +95,93 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
         </div>
       </section>
 
-      {dataMode === "demo" ? (
+      {demoMode ? (
         <div className="border-b border-amber-200 bg-amber-50">
           <div className="mx-auto max-w-7xl px-4 py-3 text-sm text-amber-800 sm:px-6 lg:px-8">
             Demo mode: using seeded PC parts, offers, and price history. Prices are not live.
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="border-b border-teal-200 bg-teal-50">
+          <div className="mx-auto max-w-7xl px-4 py-3 text-sm text-teal-900 sm:px-6 lg:px-8">
+            <span className="font-semibold">{liveVerdictLabel(liveShopping.verdict.verdict)}</span> — {liveShopping.verdict.summary}{" "}
+            <span className="text-teal-700">{liveShopping.total.label}</span>
+          </div>
+        </div>
+      )}
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
+        {!demoMode ? (
+          <Panel id="live-shopping" title="Live Shopping Links" icon={<ExternalLink className="h-5 w-5 text-teal-700" />}>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric label="Total status" value={liveShopping.total.label.split(":")[0]} />
+              <Metric label="Verified price coverage" value={`${liveShopping.total.verifiedPartCount}/${liveShopping.total.totalParts} parts`} />
+              <Metric label="Live link coverage" value={`${liveShopping.total.totalParts}/${liveShopping.total.totalParts} parts`} />
+              <Metric label="Click-to-verify parts" value={liveShopping.total.clickToVerifyCount.toString()} />
+            </div>
+            <p className="mt-3 text-sm text-zinc-600">
+              Every part has live retailer links. Prices are only marked verified when a live page is fetched and parsed.
+              {liveShopping.total.status !== "verified"
+                ? " Catalog/MSRP figures are estimates only — click a retailer to confirm the current price and stock."
+                : ""}
+            </p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[1100px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-normal text-zinc-500">
+                    <th className="py-3 pr-4">Category</th>
+                    <th className="py-3 pr-4">Part</th>
+                    <th className="py-3 pr-4">Verified Price</th>
+                    <th className="py-3 pr-4">Status</th>
+                    <th className="py-3 pr-4">Best Link</th>
+                    {RETAILER_ORDER.map((retailerId) => (
+                      <th key={retailerId} className="py-3 pr-4 capitalize">
+                        {retailerId === "bhphoto" ? "B&H" : retailerId === "microcenter" ? "Micro Center" : retailerId}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {liveShopping.rows.map((row) => {
+                    const verified = row.resolved.bestVerified;
+                    const best = verified ?? row.resolved.links[0];
+                    return (
+                      <tr key={row.category} className="border-b border-zinc-100 align-top">
+                        <td className="py-3 pr-4 font-medium">{categoryLabels[row.category as keyof typeof categoryLabels] ?? row.category}</td>
+                        <td className="py-3 pr-4">{row.resolved.productName}</td>
+                        <td className="py-3 pr-4 font-semibold">
+                          {verified?.verifiedPrice !== undefined ? formatCurrency(verified.verifiedPrice) : row.product.msrp ? `~${formatCurrency(row.product.msrp)} est.` : "—"}
+                        </td>
+                        <td className="py-3 pr-4">
+                          <PriceStatusBadge status={verified ? "verified_live" : "unverified_click_to_check"} />
+                        </td>
+                        <td className="py-3 pr-4">
+                          <ExternalRetailerLink href={best.directProductUrl ?? best.searchUrl} label={verified ? "Buy / View Deal" : "Search Retailers"} />
+                        </td>
+                        {RETAILER_ORDER.map((retailerId) => {
+                          const link = row.resolved.links.find((item) => item.retailerId === retailerId);
+                          return (
+                            <td key={retailerId} className="py-3 pr-4">
+                              {link ? (
+                                <ExternalRetailerLink
+                                  href={link.directProductUrl ?? link.searchUrl}
+                                  label={link.verifiedPrice !== undefined ? formatCurrency(link.verifiedPrice) : "Search"}
+                                />
+                              ) : (
+                                <span className="text-zinc-400">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        ) : null}
+
         <Panel id="summary" title="Build Summary" icon={<FileText className="h-5 w-5 text-teal-700" />}>
           <p className="max-w-5xl text-sm leading-7 text-zinc-700">
             This report targets a {saved.useCase} build at {saved.resolution} under {formatCurrency(saved.targetBudget)}.
@@ -167,6 +257,12 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
         </Panel>
 
         <Panel id="shopping-list" title="Shopping List" icon={<ShoppingCart className="h-5 w-5 text-teal-700" />}>
+          {!demoMode ? (
+            <p className="mb-3 text-sm text-zinc-600">
+              Prices below are catalog/MSRP estimates, not live retailer prices. Use the Live Shopping Links section above to open
+              each retailer and verify the current price and stock.
+            </p>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1180px] border-collapse text-sm">
               <thead>
@@ -207,8 +303,9 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
                         {row.actionLabel}
                       </a>
                       <div className="mt-1 text-xs text-zinc-500">
-                        {row.isDemoOffer ? "Seeded demo offer" : "External retailer"} ·{" "}
-                        {row.lastCheckedAt ? new Date(row.lastCheckedAt).toLocaleString() : "No timestamp"}
+                        {demoMode
+                          ? `${row.isDemoOffer ? "Seeded demo offer" : "External retailer"} · ${row.lastCheckedAt ? new Date(row.lastCheckedAt).toLocaleString() : "No timestamp"}`
+                          : "Catalog/MSRP estimate — verify via Live Shopping Links above"}
                       </div>
                     </td>
                     <td className="py-3 pr-4">
@@ -627,6 +724,46 @@ function verdictDriver(code: string) {
   if (code.includes("offer") || code.includes("confidence") || code.includes("risk")) return "seller-risk";
   if (code.includes("release")) return "release";
   return "price";
+}
+
+function ExternalRetailerLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      className="inline-flex items-center gap-1 font-medium text-teal-700 hover:text-teal-900"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {label}
+      <ExternalLink className="h-3.5 w-3.5" />
+    </a>
+  );
+}
+
+function PriceStatusBadge({ status }: { status: "verified_live" | "unverified_click_to_check" | "unavailable" | "stale" }) {
+  const map = {
+    verified_live: { label: "Verified live price", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+    unverified_click_to_check: { label: "Click to verify price", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
+    stale: { label: "Stale", cls: "bg-zinc-50 text-zinc-600 ring-zinc-200" },
+    unavailable: { label: "Unavailable", cls: "bg-rose-50 text-rose-700 ring-rose-200" },
+  } as const;
+  const entry = map[status];
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${entry.cls}`}>{entry.label}</span>;
+}
+
+function toLiveProduct(part: { id: string; category: string; brand: string; model: string; specs?: Record<string, unknown> }, msrp?: number): LiveProduct {
+  const extra = part as { mpn?: string | null; upc?: string | null };
+  return {
+    id: part.id,
+    category: part.category,
+    brand: part.brand,
+    model: part.model,
+    normalizedName: `${part.brand} ${part.model}`.toLowerCase(),
+    mpn: extra.mpn ?? null,
+    upc: extra.upc ?? null,
+    msrp: msrp ?? null,
+    specs: part.specs,
+  };
 }
 
 function driverLabel(driver: string) {
