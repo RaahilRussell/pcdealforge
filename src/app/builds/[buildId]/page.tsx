@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, FileText, ShieldCheck, ShoppingCart, TrendingDown } from "lucide-react";
 
+import { BuyThisBuildPanel } from "@/components/BuyThisBuildPanel";
 import { EvidenceCitationList } from "@/components/EvidenceCitationList";
 import { PriceHistoryChart } from "@/components/PriceHistoryChart";
 import { ReportActions } from "@/components/ReportActions";
@@ -28,7 +29,7 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
     notFound();
   }
 
-  const { saved, build, costBreakdown, partExplanations, compatibilityDeepDive, prebuiltComparison } = report;
+  const { saved, build, costBreakdown, partExplanations, compatibilityDeepDive, prebuiltComparison, shoppingList } = report;
   const histories = await getPriceHistory(buildCategories.map((category) => build.parts[category].id));
   const buildHistory = aggregateBuildHistory(histories);
   const sourceCount = build.evidence.length;
@@ -64,12 +65,13 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
             <ReportActions markdown={report.markdown} />
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
             <Metric label="Total" value={formatCurrency(build.totalPrice)} />
             <Metric label="Performance" value={Math.round(build.performanceScore).toString()} />
             <Metric label="Deal score" value={Math.round(build.dealScore).toString()} />
             <Metric label="Compatibility" value={build.compatibilityReport.overallStatus} />
-            <Metric label="Verdict" value={priceVerdictLabel(build.priceVerdict)} />
+            <Metric label="Price verdict" value={priceVerdictLabel(build.priceVerdict)} />
+            <Metric label="Timing verdict" value={build.timingReport?.timingVerdict.replaceAll("_", " ") ?? priceVerdictLabel(build.priceVerdict)} />
             <Metric label="Budget delta" value={budgetRemaining >= 0 ? `${formatCurrency(budgetRemaining)} left` : `${formatCurrency(Math.abs(budgetRemaining))} over`} />
           </div>
         </div>
@@ -87,6 +89,143 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
                   worstDeal.estimatedSavingsIfWaiting,
                 )}.`
               : "that the current MVP uses seeded demo data instead of live retailer feeds."}
+          </p>
+        </Panel>
+
+        <Panel id="shopping-list" title="Shopping List" icon={<ShoppingCart className="h-5 w-5 text-teal-700" />}>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1180px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-normal text-zinc-500">
+                  <th className="py-3 pr-4">Category</th>
+                  <th className="py-3 pr-4">Part</th>
+                  <th className="py-3 pr-4">Retailer</th>
+                  <th className="py-3 pr-4">Condition</th>
+                  <th className="py-3 pr-4">Base Price</th>
+                  <th className="py-3 pr-4">Shipping</th>
+                  <th className="py-3 pr-4">Estimated Tax</th>
+                  <th className="py-3 pr-4">Risk/Condition Penalty</th>
+                  <th className="py-3 pr-4">Effective Price</th>
+                  <th className="py-3 pr-4">Buy / View Deal</th>
+                  <th className="py-3 pr-4">Product Page</th>
+                  <th className="py-3">Evidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shoppingList.rows.map((row) => (
+                  <tr key={row.category} className="border-b border-zinc-100 align-top">
+                    <td className="py-3 pr-4 font-medium">{categoryLabels[row.category]}</td>
+                    <td className="py-3 pr-4">{row.productName}</td>
+                    <td className="py-3 pr-4">{row.retailer}</td>
+                    <td className="py-3 pr-4">{row.condition.replaceAll("_", " ")}</td>
+                    <td className="py-3 pr-4">{formatCurrency(row.basePrice)}</td>
+                    <td className="py-3 pr-4">{formatCurrency(row.shipping)}</td>
+                    <td className="py-3 pr-4">{formatCurrency(row.taxEstimate)}</td>
+                    <td className="py-3 pr-4">{formatCurrency(row.riskPenalty + row.conditionPenalty)}</td>
+                    <td className="py-3 pr-4 font-semibold">{formatCurrency(row.effectivePrice)}</td>
+                    <td className="py-3 pr-4">
+                      <a
+                        className="font-medium text-teal-700 hover:text-teal-900"
+                        href={row.href}
+                        target={row.isExternalUrl ? "_blank" : undefined}
+                        rel={row.isExternalUrl ? "noopener noreferrer" : undefined}
+                      >
+                        {row.actionLabel}
+                      </a>
+                      <div className="mt-1 text-xs text-zinc-500">
+                        {row.isDemoOffer ? "Seeded demo offer" : "External retailer"} ·{" "}
+                        {row.lastCheckedAt ? new Date(row.lastCheckedAt).toLocaleString() : "No timestamp"}
+                      </div>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <Link className="font-medium text-teal-700 hover:text-teal-900" href={row.productUrl}>
+                        View Product
+                      </Link>
+                    </td>
+                    <td className="py-3">
+                      {row.evidenceUrl ? (
+                        <Link className="font-medium text-teal-700 hover:text-teal-900" href={row.evidenceUrl}>
+                          View Evidence
+                        </Link>
+                      ) : (
+                        <span className="text-zinc-500">Seeded</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            <Metric label="Subtotal before shipping/tax" value={formatCurrency(shoppingList.subtotal)} />
+            <Metric label="Shipping total" value={formatCurrency(shoppingList.shippingTotal)} />
+            <Metric label="Estimated tax total" value={formatCurrency(shoppingList.taxTotal)} />
+            <Metric label="Risk penalties" value={formatCurrency(shoppingList.riskPenaltyTotal + shoppingList.conditionPenaltyTotal)} />
+            <Metric label="Final effective total" value={formatCurrency(shoppingList.finalEffectiveTotal)} />
+            <Metric label="Budget delta" value={budgetRemaining >= 0 ? `${formatCurrency(budgetRemaining)} left` : `${formatCurrency(Math.abs(budgetRemaining))} over`} />
+          </div>
+        </Panel>
+
+        <BuyThisBuildPanel rows={shoppingList.rows} markdown={shoppingList.markdown} />
+
+        <Panel id="timing" title="Is This a Good Time to Buy?" icon={<TrendingDown className="h-5 w-5 text-teal-700" />}>
+          {build.timingReport ? (
+            <div className="grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <Metric label="Timing verdict" value={build.timingReport.timingVerdict.replaceAll("_", " ")} />
+                <Metric label="Overall timing" value={Math.round(build.timingReport.overallTimingScore).toString()} />
+                <Metric label="Price timing" value={Math.round(build.timingReport.priceTimingScore).toString()} />
+                <Metric label="Release timing" value={Math.round(build.timingReport.releaseTimingScore).toString()} />
+                <Metric label="Main driver" value={build.timingReport.releaseDriven ? "Release cycle" : build.timingReport.priceDriven ? "Price" : "Value"} />
+              </div>
+              <p className="text-sm leading-7 text-zinc-700">{build.timingReport.buyNowVsWait}</p>
+              <p className="text-sm leading-7 text-zinc-700">
+                Which part drives timing: {build.timingReport.priceDrivenPart?.productName ?? "No single price driver"}.
+                The release-cycle driver is {build.timingReport.releaseDrivenPart?.productName ?? "not material"}.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-600">No timing report is attached to this saved build yet. Generate the build again to persist timing intelligence.</p>
+          )}
+        </Panel>
+
+        <Panel id="release-timing" title="Release Timing / Wait Risk" icon={<TrendingDown className="h-5 w-5 text-teal-700" />}>
+          {build.timingReport ? (
+            <div className="grid gap-4">
+              <p className="text-sm leading-7 text-zinc-700">{build.timingReport.releaseExplanation}</p>
+              <p className="text-sm leading-7 text-zinc-700">{build.timingReport.upgradeCycleRisk}</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {build.timingReport.partReports.map((part) => (
+                  <div key={part.productId} className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-medium">{part.productName}</div>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">
+                        {part.timingVerdict.replaceAll("_", " ")}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-zinc-600">{part.releaseExplanation}</p>
+                    <div className="mt-2 text-xs text-zinc-500">
+                      Source: {part.releaseSignal.signalType === "seeded_demo" ? "Seeded demo release-cycle data" : part.releaseSignal.signalType}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-600">No release timing report is attached.</p>
+          )}
+        </Panel>
+
+        <Panel id="category-fit" title="Category Fit" icon={<FileText className="h-5 w-5 text-teal-700" />}>
+          <div className="grid gap-3 md:grid-cols-3">
+            <Metric label="Gaming fit" value={`${String(build.parts.gpu.specs.vramGb ?? "Unknown")}GB VRAM / GPU-first`} />
+            <Metric label="AI fit" value={build.parts.gpu.brand.toLowerCase().includes("nvidia") ? "CUDA-friendly" : "Gaming/value-first"} />
+            <Metric label="Upgrade path" value={`${String(build.parts.motherboard.specs.socket ?? "Unknown")} · ${String(build.parts.psu.specs.wattage ?? "Unknown")}W PSU`} />
+          </div>
+          <p className="mt-4 text-sm leading-7 text-zinc-700">
+            Category fit is deterministic. Gaming emphasizes GPU performance, VRAM, CPU balance, airflow, and PSU reliability.
+            AI/local LLM fit emphasizes VRAM, NVIDIA/CUDA tooling where applicable, system RAM, storage, PSU headroom, and cooling.
+            Upgrade-path fit emphasizes modern platform, DDR generation, M.2 slots, case clearance, and PSU headroom.
           </p>
         </Panel>
 
@@ -313,6 +452,24 @@ export default async function BuildReportPage({ params }: { params: Promise<{ bu
 
         <Panel id="sources" title="Sources Used" icon={<FileText className="h-5 w-5 text-teal-700" />}>
           <EvidenceCitationList citations={build.evidence} />
+        </Panel>
+
+        <Panel id="checklist" title="Before Buying Checklist" icon={<ShieldCheck className="h-5 w-5 text-teal-700" />}>
+          <ul className="grid gap-2 text-sm leading-6 text-zinc-700 md:grid-cols-2">
+            {[
+              "Verify retailer price and stock.",
+              "Verify return policy.",
+              "Check seller if marketplace listing.",
+              "Confirm case/GPU/cooler clearance.",
+              "Confirm BIOS support for motherboard/CPU.",
+              "Confirm PSU cable support for GPU.",
+              "Confirm tax/shipping at checkout.",
+              "If waiting, track the specific part causing the WAIT verdict.",
+              "If considering new releases, verify official release news before delaying purchase.",
+            ].map((item) => (
+              <li key={item} className="rounded-md border border-zinc-200 bg-zinc-50 p-3">{item}</li>
+            ))}
+          </ul>
         </Panel>
       </section>
     </main>

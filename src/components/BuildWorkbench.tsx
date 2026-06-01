@@ -82,6 +82,7 @@ type ProductPriceTrend = {
   ninetyDayLow: number;
   oneEightyDayLow: number;
   ninetyDayAverage: number;
+  estimatedSavingsIfWaiting: number;
   verdict: Verdict;
   explanation: string;
   evidence?: EvidenceCitation[];
@@ -137,6 +138,18 @@ type GeneratedBuild = {
     internalCalculationCount: number;
     compatibilityRuleCount: number;
   };
+  timingReport?: {
+    timingVerdict: string;
+    overallTimingScore: number;
+    priceTimingScore: number;
+    releaseTimingScore: number;
+    priceDriven: boolean;
+    releaseDriven: boolean;
+    priceDrivenPart?: { productName: string; priceTrend: { estimatedSavingsIfWaiting: number } };
+    releaseDrivenPart?: { productName: string; releaseSignal: { signalType: string } };
+    buyNowVsWait: string;
+    releaseExplanation: string;
+  };
 };
 
 type GenerateBuildResponse = Record<VariantKey, GeneratedBuild | null> & {
@@ -152,6 +165,24 @@ type GenerateBuildResponse = Record<VariantKey, GeneratedBuild | null> & {
     bestUpgradePath: string;
     citations: EvidenceCitation[];
   } | null;
+  recommendationCategories?: Array<{
+    categoryId: string;
+    title: string;
+    buildId?: string;
+    prebuiltId?: string;
+    totalPrice: number;
+    compatibilityStatus: string;
+    priceVerdict: string;
+    timingVerdict: string;
+    performanceScore: number;
+    categoryScore: number;
+    shortWhy: string;
+    detailedWhy: string;
+    positives: string[];
+    negatives: string[];
+    whoShouldPickThis: string;
+    whoShouldAvoidThis: string;
+  }>;
 };
 
 type HistoryResponse = {
@@ -392,10 +423,14 @@ export function BuildWorkbench() {
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <Metric label="Total" value={formatCurrency(build.totalPrice)} />
                       <Metric label="Performance" value={Math.round(build.performanceScore).toString()} />
-                      <Metric label="Deal score" value={Math.round(build.dealScore).toString()} />
-                      <Metric label="Verdict" value={formatVerdict(build.priceVerdict)} tone={verdictTone(build.priceVerdict)} />
+                      <Metric label="Price verdict" value={formatVerdict(build.priceVerdict)} tone={verdictTone(build.priceVerdict)} />
+                      <Metric label="Timing" value={formatAnyVerdict(build.timingReport?.timingVerdict ?? build.priceVerdict)} tone={timingTone(build.timingReport?.timingVerdict ?? build.priceVerdict)} />
                     </div>
                     <p className="mt-4 text-sm leading-6 text-zinc-600">{build.whySelected}</p>
+                    <p className="mt-3 text-xs leading-5 text-zinc-500">
+                      {buildBuyLinkCount(build)} buy/view links · Best deal: {bestDealPart(build)} · Biggest wait risk:{" "}
+                      {biggestOverpricedPart(build)}
+                    </p>
                   </button>
                   <Link
                     href={`/builds/${build.id}`}
@@ -406,6 +441,40 @@ export function BuildWorkbench() {
                 </div>
               ))}
             </div>
+
+            {results?.recommendationCategories?.length ? (
+              <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+                <div>
+                  <h2 className="text-lg font-semibold">Recommendation Categories</h2>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Category winners are deterministic and may reuse the same build when it best fits multiple buying goals.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {results.recommendationCategories.map((category) => (
+                    <Link
+                      key={category.categoryId}
+                      href={category.buildId ? `/builds/${category.buildId}` : category.prebuiltId ? `/prebuilts/${category.prebuiltId}` : "#"}
+                      className="rounded-md border border-zinc-200 bg-zinc-50 p-4 hover:border-teal-600"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">{category.title}</h3>
+                          <p className="mt-2 text-sm leading-6 text-zinc-600">{category.shortWhy}</p>
+                        </div>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">
+                          {Math.round(category.categoryScore)}
+                        </span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                        <Metric label="Total" value={formatCurrency(category.totalPrice)} />
+                        <Metric label="Timing" value={formatAnyVerdict(category.timingVerdict)} />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             {activeBuild ? (
               <div className="grid gap-8">
@@ -420,6 +489,9 @@ export function BuildWorkbench() {
                     <div className="flex flex-wrap gap-2">
                       <StatusPill status={activeBuild.compatibilityReport.overallStatus} />
                       <VerdictPill verdict={activeBuild.priceVerdict} />
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${timingPillClass(activeBuild.timingReport?.timingVerdict ?? activeBuild.priceVerdict)}`}>
+                        {formatAnyVerdict(activeBuild.timingReport?.timingVerdict ?? activeBuild.priceVerdict)}
+                      </span>
                     </div>
                   </div>
 
@@ -798,6 +870,39 @@ function verdictTone(verdict: Verdict) {
 
 function formatVerdict(verdict: Verdict) {
   return verdict.replace("_", " ");
+}
+
+function formatAnyVerdict(verdict: string) {
+  return verdict.replaceAll("_", " ");
+}
+
+function timingTone(verdict: string) {
+  if (verdict === "BUY_NOW") return "text-emerald-700";
+  if (verdict === "AVOID") return "text-rose-700";
+  return "text-amber-700";
+}
+
+function timingPillClass(verdict: string) {
+  if (verdict === "BUY_NOW") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (verdict === "AVOID") return "bg-rose-50 text-rose-700 ring-rose-200";
+  return "bg-amber-50 text-amber-700 ring-amber-200";
+}
+
+function buildBuyLinkCount(build: GeneratedBuild) {
+  return categories.filter((category) => Boolean(build.offers[category]?.offer?.id)).length;
+}
+
+function bestDealPart(build: GeneratedBuild) {
+  return [...build.productPriceTrends].sort((left, right) => left.currentPrice - right.currentPrice)[0]?.productName ?? "unknown";
+}
+
+function biggestOverpricedPart(build: GeneratedBuild) {
+  return (
+    build.timingReport?.priceDrivenPart?.productName ??
+    [...build.productPriceTrends].sort((left, right) => right.estimatedSavingsIfWaiting - left.estimatedSavingsIfWaiting)[0]
+      ?.productName ??
+    "unknown"
+  );
 }
 
 function formatCurrency(value: number) {
