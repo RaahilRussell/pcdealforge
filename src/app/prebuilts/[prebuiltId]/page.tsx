@@ -56,6 +56,7 @@ export default async function PrebuiltPage({ params }: { params: Promise<{ prebu
             <Metric label="RAM" value={`${prebuilt.ramGb}GB`} />
             <Metric label="Storage" value={`${prebuilt.storageGb}GB`} />
             <Metric label="Value" value={Math.round(prebuilt.valueScore).toString()} />
+            <Metric label="Timing" value={prebuilt.timingVerdict.replaceAll("_", " ")} />
           </div>
         </div>
       </section>
@@ -73,12 +74,16 @@ export default async function PrebuiltPage({ params }: { params: Promise<{ prebu
               <Detail label="Case" value={prebuilt.caseInfo ?? "Unknown"} />
               <Detail label="Cooling" value={prebuilt.coolingInfo ?? "Unknown"} />
               <Detail label="Warranty" value={prebuilt.warrantyInfo ?? "Unknown"} />
+              <Detail label="Data status" value={prebuilt.isDemoPrebuilt ? "Seeded demo prebuilt" : "Live/verified prebuilt"} />
+              <Detail label="Last checked" value={prebuilt.lastCheckedAt.toLocaleString()} />
             </dl>
           </Panel>
           <Panel title="Scores">
             <div className="grid gap-3">
               <Metric label="Upgradeability" value={Math.round(prebuilt.upgradeabilityScore).toString()} />
               <Metric label="Value" value={Math.round(prebuilt.valueScore).toString()} />
+              <Metric label="Hidden risk" value={Math.round(prebuilt.hiddenRiskScore).toString()} />
+              <Metric label="Timing" value={prebuilt.timingVerdict.replaceAll("_", " ")} />
               <Metric label="Confidence" value={`${Math.round(prebuilt.confidenceScore * 100)}%`} />
             </div>
           </Panel>

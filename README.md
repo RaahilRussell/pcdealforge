@@ -14,7 +14,10 @@ The current implementation is a seeded, deterministic vertical slice. It does no
 - Deterministic compatibility engine with PASS, WARNING, and FAIL results.
 - Deal engine with effective price, risk penalties, confidence scoring, offer matching, and safe recommendation filtering.
 - Price intelligence for buy-now, wait, or avoid recommendations.
+- Market timing advisor with `BUY_NOW`, `WAIT_FOR_PRICE_DROP`, `WAIT_FOR_NEW_RELEASE`, `BUY_ONLY_IF_NEEDED`, and `AVOID` verdicts.
+- Seeded release-cycle signals that are explicitly labeled and never treated as live launch claims.
 - Build optimizer returning best overall, cheapest safe, and best performance-per-dollar builds.
+- Expanded recommendation categories including Best for Gaming, Best for AI / Local LLMs, Best Buy Now, Best Wait-and-Watch, and Best Prebuilt Alternative.
 - Evidence/source citations for specs, compatibility claims, deal claims, price verdicts, and build reports.
 - Deterministic long-form build essays and build comparisons.
 - Clickable saved build reports with cost breakdowns, part explanations, offer links, compatibility deep dives, evidence pages, and markdown export.
@@ -32,6 +35,10 @@ The current implementation is a seeded, deterministic vertical slice. It does no
 - `src/lib/builds`: candidate generation and build ranking.
 - `src/lib/builds/reportDetails.ts`: saved report hydration, cost math, compatibility deep-dive values, markdown export, and prebuilt comparison helpers.
 - `src/lib/builds/partExplanations.ts`: deterministic part-by-part selection explanations.
+- `src/lib/builds/recommendationCategories.ts`: deterministic category scoring for gaming, AI, streaming, content creation, upgrade path, buy-now, wait, avoid, and prebuilt picks.
+- `src/lib/timing`: market timing, release timing, and build-level timing verdicts.
+- `src/lib/shopping`: actionable offer normalization, buy/view route selection, shopping list totals, and markdown shopping list output.
+- `src/lib/llm`: optional Ollama report polishing with deterministic fallback.
 - `src/lib/evidence`: citation formatting, evidence lookup, claim mapping, and source-backed report attachment.
 - `src/lib/data`: Prisma-backed catalog loaders and mappers.
 - `src/lib/db`: Prisma 7 SQLite client setup with the Better SQLite driver adapter.
@@ -107,6 +114,26 @@ Build-level price intelligence aggregates component timelines, flags overpriced 
 
 Source-backed price panels cite the current offer evidence, seeded price history evidence, and deterministic formula sources. They do not claim live pricing when the source is seeded demo data.
 
+## Market Timing Advisor
+
+Timing is separate from the basic price verdict. `src/lib/timing` combines:
+
+- price timing score: current price versus 30/90/180-day averages, historical low, volatility, sale band, usually-cheaper behavior, and estimated wait savings
+- release timing score: category, brand/family release signal, source type, confidence, expected window/date if known, and platform lifecycle risk
+- overall timing score: price timing, release timing, deal quality, urgency/value posture, and risk tolerance context
+
+Timing verdicts:
+
+- `BUY_NOW`: current value is favorable and no high-confidence release signal says waiting is clearly better.
+- `WAIT_FOR_PRICE_DROP`: the build or a key part is above its seeded normal sale band or has meaningful expected savings.
+- `WAIT_FOR_NEW_RELEASE`: a stored release signal is strong enough to make launch timing the main wait reason.
+- `BUY_ONLY_IF_NEEDED`: compatible and usable, but timing is not strong enough to call it a clear buy.
+- `AVOID`: price, listing risk, or timing is poor enough that the recommendation should not drive a purchase.
+
+Release timing does not use rumors as facts. The MVP only uses `ProductReleaseSignal` records. Seeded demo release signals are labeled as seeded demo data, official signals would need explicit source records, and unknown signals do not force a wait recommendation.
+
+The build report includes an "Is This a Good Time to Buy?" section that states whether the wait reason is price-driven or release-driven, which part causes the timing verdict, and whether release-cycle risk is actually material.
+
 ## Build Optimizer
 
 The optimizer accepts budget, use case, resolution, GPU preference, requested RAM/storage, Wi-Fi requirement, and risk tolerance. It prices the seeded products, filters by safe offers, generates candidate builds, runs compatibility checks, rejects builds with compatibility failures, enforces budget, and ranks by:
@@ -126,6 +153,17 @@ It returns:
 - `bestPerformancePerDollar`
 
 Each build includes selected parts, offers, total price, performance score, compatibility report, deal score, price verdict, selection reason, and cheaper compatible swaps.
+
+Recommendation categories are generated from the deterministic build data:
+
+- Best for Gaming prioritizes GPU performance, VRAM, resolution fit, CPU balance, airflow, PSU reliability, and price/performance.
+- Best for AI / Local LLMs prioritizes VRAM, NVIDIA/CUDA tooling where applicable, system RAM, storage, PSU headroom, and cooling.
+- Best for Content Creation prioritizes CPU performance, GPU acceleration, RAM, storage, cooling, and stability.
+- Best for Streaming prioritizes encoder/tooling assumptions, CPU headroom, memory, PSU, and cooling.
+- Best Upgrade Path rewards modern socket/platform, DDR5, M.2 slot count, PSU headroom, and case clearance.
+- Best Buy Now requires favorable timing and no major release-cycle warning.
+- Best Wait-and-Watch explains whether the wait reason is price-driven or release-driven.
+- Best Prebuilt Alternative uses seeded prebuilt value, upgradeability, confidence, warranty/convenience, and hidden-risk score.
 
 ## Build Essays And Comparisons
 
@@ -166,15 +204,39 @@ Generated recommendations are persisted to `SavedBuild` with stable deterministi
 The build report page is intended to be a buying audit, not just a summary card. It includes:
 
 - top-level price, performance, deal, compatibility, verdict, source count, and seeded/live data labels
+- shopping list rows for every selected offer, with product ID, offer ID, retailer, condition, base price, shipping, tax estimate, risk/condition penalties, effective price, stock, confidence, seller, and buy/view route
+- "Buy This Build" tools for opening real retailer links, copying links, copying markdown shopping list, and exporting markdown
 - full cost breakdown by part, including base price, shipping, tax estimate, seller/condition risk penalties, and final effective price
+- "Is This a Good Time to Buy?" and "Release Timing / Wait Risk" sections
+- category-fit notes for gaming, AI/local LLMs, and upgrade path
 - part-by-part explanations for why each component was selected, what it is good at, its downside, and what compatibility role it plays
 - exact compatibility values for every rule, such as CPU socket versus motherboard socket, GPU length versus case clearance, and PSU wattage math
 - build-level and per-part price timing analysis with Recharts timeline data
 - a deterministic essay with positives, negatives, tradeoffs, ideal buyer, buyer-to-avoid, upgrade path, and final recommendation
 - source links for product evidence, rule evidence, seeded price evidence, and internal calculation evidence
+- before-buying checklist covering stock, return policy, seller risk, clearance, BIOS support, PSU cable support, tax/shipping, wait-tracking, and official release verification
 - copy/export tools that generate a markdown report
 
 Seeded or demo offer links route to internal `/offers/[offerId]` pages. Real external retailer URLs can be opened in a new tab when they are present and valid. The seeded MVP does not pretend example/demo listings are live retailer claims.
+
+## Optional Ollama Polishing
+
+`src/lib/llm` adds optional local Ollama support for prose polishing only. Ollama is never used for compatibility, price, value, timing, ranking, source, or release decisions.
+
+Environment variables:
+
+```bash
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1:8b
+```
+
+`POST /api/reports/polish` accepts deterministic report facts, verdicts, and citations. The prompt explicitly says:
+
+```text
+You are only rewriting the provided facts. Do not add new claims, sources, prices, benchmarks, release dates, or compatibility conclusions. Preserve all warnings and citations.
+```
+
+If Ollama is unavailable or returns an error, the app returns the deterministic report with `usedOllama: false` and a fallback reason.
 
 ## Prebuilt Placeholder Mode
 
@@ -185,6 +247,7 @@ Prebuilt pages show:
 - price, retailer, CPU, GPU, RAM, storage, warranty, and known component details
 - unknowns such as exact PSU, motherboard, cooling, memory channel layout, or proprietary parts
 - hidden risks like unknown PSU quality, weak cooling, single-channel RAM, higher markup, and upgradeability limits
+- timing verdict, hidden-risk score, demo/live status, confidence, and last checked timestamp
 - nearest saved DIY build comparison by price
 
 The prebuilt records are seeded demo records unless a future ingestion pipeline attaches validated retailer/source URLs.
@@ -198,7 +261,8 @@ The Prisma schema defines:
 - `PriceSnapshot`: timestamped offer-level price history.
 - `DailyProductPrice`: daily aggregate lows and averages for trend analysis.
 - `SavedBuild`: serialized build snapshot for future persistence.
-- `PrebuiltSystem`: seeded/demo prebuilt PC records for future DIY-vs-prebuilt comparison.
+- `PrebuiltSystem`: seeded/demo prebuilt PC records with value, upgradeability, hidden risk, timing verdict, demo/live status, and last checked timestamp.
+- `ProductReleaseSignal`: release-cycle signal records with category, brand, product family, generation, signal type, confidence, expected window/date, source title/URL, and notes.
 - `EvidenceSource`: source metadata for seeded demo records, internal formulas, rules, and future external sources.
 - `ProductEvidence`: product-level cited claims.
 - `BuildEvidence`: build-level cited claims.
@@ -257,6 +321,7 @@ npm run db:studio
 - `POST /api/evidence/build`
 - `POST /api/build-analysis`
 - `POST /api/compare-builds`
+- `POST /api/reports/polish`
 
 POST bodies are validated with Zod.
 

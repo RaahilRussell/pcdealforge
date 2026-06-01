@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { EnhancedBuildResult } from "./reporting";
 import { generateSourceBackedBuilds } from "./reporting";
 import { buildCategories, calculateCostBreakdown, getBuildReport } from "./reportDetails";
-import { getEvidenceDetail, getOffer, getPrebuiltSystem, getProduct } from "@/lib/data/catalog";
+import { getEvidenceDetail, getOffer, getPrebuiltSystem, getProduct, listPrebuiltSystems } from "@/lib/data/catalog";
 
 let result: EnhancedBuildResult;
 
@@ -84,6 +84,15 @@ describe("clickable build reports", () => {
     expect(Math.round(build.totalPrice * 100) / 100).toBe(breakdown.effectiveTotal);
   });
 
+  it("shopping list has selected offers, buy/view routes, and demo labels", async () => {
+    const report = await getBuildReport(result.bestOverall!.id);
+
+    expect(report?.shoppingList.rows).toHaveLength(buildCategories.length);
+    expect(report?.shoppingList.finalEffectiveTotal).toBe(report?.costBreakdown.effectiveTotal);
+    expect(report?.shoppingList.rows.every((row) => row.offerId && row.href)).toBe(true);
+    expect(report?.shoppingList.rows.every((row) => row.isDemoOffer && row.actionLabel === "View Demo Offer")).toBe(true);
+  });
+
   it("each part row has product and selected offer records", async () => {
     const build = result.bestOverall!;
 
@@ -125,6 +134,25 @@ describe("clickable build reports", () => {
 
     expect(evidence).toBeTruthy();
     expect(prebuilt).toBeTruthy();
+  });
+
+  it("returns expanded recommendation categories", () => {
+    const categories = result.recommendationCategories ?? [];
+
+    expect(categories.find((category) => category.categoryId === "best_for_gaming")).toBeTruthy();
+    expect(categories.find((category) => category.categoryId === "best_for_ai_local_llms")).toBeTruthy();
+    expect(categories.find((category) => category.categoryId === "best_upgrade_path")).toBeTruthy();
+    expect(categories.find((category) => category.categoryId === "best_buy_now")).toBeTruthy();
+    expect(categories.find((category) => category.categoryId === "best_wait_for_price_drop")).toBeTruthy();
+    expect(categories.find((category) => category.categoryId === "best_prebuilt_alternative")?.prebuiltId).toBeTruthy();
+  });
+
+  it("seeded prebuilts expose demo and hidden-risk fields", async () => {
+    const prebuilts = await listPrebuiltSystems();
+
+    expect(prebuilts.length).toBeGreaterThan(0);
+    expect(prebuilts.every((prebuilt) => prebuilt.isDemoPrebuilt)).toBe(true);
+    expect(prebuilts.some((prebuilt) => prebuilt.hiddenRiskScore > 0)).toBe(true);
   });
 });
 
