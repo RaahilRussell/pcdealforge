@@ -195,7 +195,11 @@ model PrebuiltSystem {
   warrantyInfo        String?
   upgradeabilityScore Float
   valueScore          Float
+  hiddenRiskScore     Float    @default(50)
+  timingVerdict       String   @default("BUY_ONLY_IF_NEEDED")
   confidenceScore     Float
+  isDemoPrebuilt      Boolean  @default(true)
+  lastCheckedAt       DateTime @default(now())
   specsJson           String
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -203,4 +207,29 @@ model PrebuiltSystem {
   @@index([retailer])
   @@index([price])
   @@index([gpuName])
+  @@index([timingVerdict])
+  @@index([isDemoPrebuilt])
+}
+
+model ProductReleaseSignal {
+  id                     String   @id @default(cuid())
+  category               String
+  brand                  String
+  productFamily          String
+  currentGeneration      String
+  expectedNextGeneration String?
+  signalType             String
+  confidenceScore        Float
+  expectedWindowLabel    String?
+  expectedDate           DateTime?
+  sourceTitle            String
+  sourceUrl              String?
+  notes                  String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([category])
+  @@index([brand])
+  @@index([productFamily])
+  @@index([signalType])
 }

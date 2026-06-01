@@ -1349,7 +1349,11 @@ const prebuilts = [
     warrantyInfo: "Seeded demo warranty placeholder",
     upgradeabilityScore: 72,
     valueScore: 83,
+    hiddenRiskScore: 42,
+    timingVerdict: "BUY_ONLY_IF_NEEDED",
     confidenceScore: 0.72,
+    isDemoPrebuilt: true,
+    lastCheckedAt: anchorDate,
     specsJson: JSON.stringify({
       hiddenRisks: ["Exact PSU model unknown", "Exact motherboard model unknown"],
       comparisonNotes: "Similar GPU class to the seeded DIY 1440p builds with less component transparency.",
@@ -1374,7 +1378,11 @@ const prebuilts = [
     warrantyInfo: "Seeded demo warranty placeholder",
     upgradeabilityScore: 68,
     valueScore: 78,
+    hiddenRiskScore: 48,
+    timingVerdict: "BUY_ONLY_IF_NEEDED",
     confidenceScore: 0.7,
+    isDemoPrebuilt: true,
+    lastCheckedAt: anchorDate,
     specsJson: JSON.stringify({
       hiddenRisks: ["Exact PSU connector support unknown", "OEM motherboard may have fewer headers"],
       comparisonNotes: "Higher CPU class and NVIDIA GPU option, but lower transparency than DIY.",
@@ -1399,7 +1407,11 @@ const prebuilts = [
     warrantyInfo: "Seeded demo warranty placeholder",
     upgradeabilityScore: 48,
     valueScore: 70,
+    hiddenRiskScore: 70,
+    timingVerdict: "AVOID",
     confidenceScore: 0.64,
+    isDemoPrebuilt: true,
+    lastCheckedAt: anchorDate,
     specsJson: JSON.stringify({
       hiddenRisks: ["Unknown PSU", "Possible proprietary motherboard/case", "16GB RAM may be single-channel"],
       comparisonNotes: "Lower upfront cost, weaker upgrade transparency.",
@@ -1424,7 +1436,11 @@ const prebuilts = [
     warrantyInfo: "Seeded demo warranty placeholder",
     upgradeabilityScore: 82,
     valueScore: 74,
+    hiddenRiskScore: 34,
+    timingVerdict: "WAIT_FOR_PRICE_DROP",
     confidenceScore: 0.76,
+    isDemoPrebuilt: true,
+    lastCheckedAt: anchorDate,
     specsJson: JSON.stringify({
       hiddenRisks: ["Higher prebuilt markup", "Exact board model should be verified"],
       comparisonNotes: "Better support/warranty positioning, weaker raw value than DIY.",
@@ -1432,10 +1448,104 @@ const prebuilts = [
   },
 ];
 
+const releaseSignals = [
+  {
+    id: "release-signal-nvidia-gpu-seeded",
+    category: "gpu",
+    brand: "NVIDIA",
+    productFamily: "GeForce RTX",
+    currentGeneration: "RTX 50-series seeded demo generation",
+    expectedNextGeneration: "Unknown next GeForce generation",
+    signalType: "seeded_demo",
+    confidenceScore: 0.64,
+    expectedWindowLabel: "Seeded demo: medium wait risk window",
+    sourceTitle: "PCDealForge seeded NVIDIA GPU release-cycle signal",
+    sourceUrl: null,
+    notes:
+      "Seeded demo release-cycle signal. It indicates medium category wait risk for GPU-heavy builds, but it is not a live launch claim.",
+  },
+  {
+    id: "release-signal-amd-gpu-seeded",
+    category: "gpu",
+    brand: "AMD",
+    productFamily: "Radeon RX",
+    currentGeneration: "Radeon RX 9000-series seeded demo generation",
+    expectedNextGeneration: "Unknown next Radeon generation",
+    signalType: "seeded_demo",
+    confidenceScore: 0.58,
+    expectedWindowLabel: "Seeded demo: medium wait risk window",
+    sourceTitle: "PCDealForge seeded AMD GPU release-cycle signal",
+    sourceUrl: null,
+    notes:
+      "Seeded demo release-cycle signal. Waiting should not be recommended solely from this signal unless price timing is also weak.",
+  },
+  {
+    id: "release-signal-amd-cpu-platform-seeded",
+    category: "cpu",
+    brand: "AMD",
+    productFamily: "Ryzen AM5",
+    currentGeneration: "Ryzen 7000/9000 seeded AM5 platform",
+    expectedNextGeneration: "Unknown future AM5 CPUs",
+    signalType: "seeded_demo",
+    confidenceScore: 0.52,
+    expectedWindowLabel: "Seeded demo: low-to-medium platform wait risk",
+    sourceTitle: "PCDealForge seeded AMD CPU/platform release-cycle signal",
+    sourceUrl: null,
+    notes:
+      "Seeded demo platform signal. AM5-style upgrade path is treated as comparatively strong in the MVP data.",
+  },
+  {
+    id: "release-signal-intel-cpu-platform-seeded",
+    category: "cpu",
+    brand: "Intel",
+    productFamily: "Core desktop",
+    currentGeneration: "LGA1700 seeded demo generation",
+    expectedNextGeneration: "Unknown future Intel desktop platform",
+    signalType: "seeded_demo",
+    confidenceScore: 0.56,
+    expectedWindowLabel: "Seeded demo: medium platform wait risk",
+    sourceTitle: "PCDealForge seeded Intel CPU/platform release-cycle signal",
+    sourceUrl: null,
+    notes:
+      "Seeded demo platform signal. Treat as a platform lifecycle consideration, not an official launch forecast.",
+  },
+  {
+    id: "release-signal-ram-storage-low-impact",
+    category: "storage",
+    brand: "Multi-brand",
+    productFamily: "RAM and NVMe storage",
+    currentGeneration: "DDR5/NVMe seeded demo generation",
+    expectedNextGeneration: null,
+    signalType: "seeded_demo",
+    confidenceScore: 0.5,
+    expectedWindowLabel: "Seeded demo: low release-timing concern",
+    sourceTitle: "PCDealForge seeded RAM/storage release-cycle signal",
+    sourceUrl: null,
+    notes:
+      "Seeded demo signal. RAM and SSD buying advice should usually be price-driven rather than release-cycle-driven in this MVP.",
+  },
+  {
+    id: "release-signal-cases-psus-coolers-low-impact",
+    category: "case",
+    brand: "Multi-brand",
+    productFamily: "Cases, PSUs, and coolers",
+    currentGeneration: "Current seeded demo accessories",
+    expectedNextGeneration: null,
+    signalType: "seeded_demo",
+    confidenceScore: 0.5,
+    expectedWindowLabel: "Seeded demo: low release-timing concern",
+    sourceTitle: "PCDealForge seeded accessory release-cycle signal",
+    sourceUrl: null,
+    notes:
+      "Seeded demo signal. Cases, PSUs, and coolers usually have lower launch-timing risk than CPUs and GPUs in this MVP.",
+  },
+];
+
 async function main() {
   await prisma.buildEvidence.deleteMany();
   await prisma.productEvidence.deleteMany();
   await prisma.evidenceSource.deleteMany();
+  await prisma.productReleaseSignal.deleteMany();
   await prisma.prebuiltSystem.deleteMany();
   await prisma.priceSnapshot.deleteMany();
   await prisma.dailyProductPrice.deleteMany();
@@ -1639,6 +1749,7 @@ async function main() {
   });
 
   await prisma.prebuiltSystem.createMany({ data: prebuilts });
+  await prisma.productReleaseSignal.createMany({ data: releaseSignals });
 
   await prisma.buildEvidence.createMany({
     data: [
@@ -1684,7 +1795,7 @@ async function main() {
 
   console.table(counts.map((count) => ({ category: count.category, products: count._count.id })));
   console.log(
-    `Seeded ${offers.length} offers, ${dailyRows.length} daily price rows, ${productEvidenceRows.length} product evidence records, and ${prebuilts.length} prebuilts.`,
+    `Seeded ${offers.length} offers, ${dailyRows.length} daily price rows, ${productEvidenceRows.length} product evidence records, ${prebuilts.length} prebuilts, and ${releaseSignals.length} release signals.`,
   );
 }
 

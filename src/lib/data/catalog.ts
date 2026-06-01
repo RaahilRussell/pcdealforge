@@ -89,8 +89,30 @@ type PrebuiltRecord = {
   warrantyInfo: string | null;
   upgradeabilityScore: number;
   valueScore: number;
+  hiddenRiskScore: number;
+  timingVerdict: string;
   confidenceScore: number;
+  isDemoPrebuilt: boolean;
+  lastCheckedAt: Date;
   specsJson: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type ReleaseSignalRecord = {
+  id: string;
+  category: string;
+  brand: string;
+  productFamily: string;
+  currentGeneration: string;
+  expectedNextGeneration: string | null;
+  signalType: string;
+  confidenceScore: number;
+  expectedWindowLabel: string | null;
+  expectedDate: Date | null;
+  sourceTitle: string;
+  sourceUrl: string | null;
+  notes: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -181,6 +203,15 @@ export async function listPrebuiltSystems(limit = 12) {
 export async function getPrebuiltSystem(prebuiltId: string) {
   const prebuilt = await prisma.prebuiltSystem.findUnique({ where: { id: prebuiltId } });
   return prebuilt ? mapPrebuiltSystem(prebuilt) : null;
+}
+
+export async function listReleaseSignals(category?: string | null) {
+  const signals = await prisma.productReleaseSignal.findMany({
+    where: category ? { category } : undefined,
+    orderBy: [{ category: "asc" }, { brand: "asc" }],
+  });
+
+  return signals.map(mapReleaseSignal);
 }
 
 export async function getEvidenceDetail(evidenceId: string) {
@@ -332,10 +363,34 @@ export function mapPrebuiltSystem(prebuilt: PrebuiltRecord) {
     warrantyInfo: prebuilt.warrantyInfo,
     upgradeabilityScore: prebuilt.upgradeabilityScore,
     valueScore: prebuilt.valueScore,
+    hiddenRiskScore: prebuilt.hiddenRiskScore,
+    timingVerdict: prebuilt.timingVerdict,
     confidenceScore: prebuilt.confidenceScore,
+    isDemoPrebuilt: prebuilt.isDemoPrebuilt,
+    lastCheckedAt: prebuilt.lastCheckedAt,
     specs: parseJson<Record<string, unknown>>(prebuilt.specsJson, {}),
     createdAt: prebuilt.createdAt,
     updatedAt: prebuilt.updatedAt,
+  };
+}
+
+export function mapReleaseSignal(signal: ReleaseSignalRecord) {
+  return {
+    id: signal.id,
+    category: signal.category as ProductCategory | "prebuilt",
+    brand: signal.brand,
+    productFamily: signal.productFamily,
+    currentGeneration: signal.currentGeneration,
+    expectedNextGeneration: signal.expectedNextGeneration,
+    signalType: signal.signalType,
+    confidenceScore: signal.confidenceScore,
+    expectedWindowLabel: signal.expectedWindowLabel,
+    expectedDate: signal.expectedDate,
+    sourceTitle: signal.sourceTitle,
+    sourceUrl: signal.sourceUrl,
+    notes: signal.notes,
+    createdAt: signal.createdAt,
+    updatedAt: signal.updatedAt,
   };
 }
 
