@@ -17,6 +17,8 @@ The current implementation is a seeded, deterministic vertical slice. It does no
 - Build optimizer returning best overall, cheapest safe, and best performance-per-dollar builds.
 - Evidence/source citations for specs, compatibility claims, deal claims, price verdicts, and build reports.
 - Deterministic long-form build essays and build comparisons.
+- Clickable saved build reports with cost breakdowns, part explanations, offer links, compatibility deep dives, evidence pages, and markdown export.
+- Product, offer, evidence/source, and seeded prebuilt detail pages.
 - Next.js App Router API routes and UI with Recharts timelines.
 - Vitest coverage for compatibility, deal scoring, price intelligence, optimizer behavior, evidence coverage, essays, and comparisons.
 
@@ -28,6 +30,8 @@ The current implementation is a seeded, deterministic vertical slice. It does no
 - `src/lib/deals`: offer normalization, matching, risk filtering, and deal scoring.
 - `src/lib/pricing`: product and build price trend intelligence.
 - `src/lib/builds`: candidate generation and build ranking.
+- `src/lib/builds/reportDetails.ts`: saved report hydration, cost math, compatibility deep-dive values, markdown export, and prebuilt comparison helpers.
+- `src/lib/builds/partExplanations.ts`: deterministic part-by-part selection explanations.
 - `src/lib/evidence`: citation formatting, evidence lookup, claim mapping, and source-backed report attachment.
 - `src/lib/data`: Prisma-backed catalog loaders and mappers.
 - `src/lib/db`: Prisma 7 SQLite client setup with the Better SQLite driver adapter.
@@ -130,19 +134,60 @@ Build reports are generated deterministically in TypeScript without an LLM API. 
 Each build essay includes:
 
 - Executive Summary
+- Why This Build Exists
+- Performance Expectations
 - Major Positives
 - Major Negatives
 - Compatibility Reasoning
 - Deal/Price Reasoning
+- Part-by-Part Justification
+- Best Upgrade Path
 - Who Should Buy
 - Who Should Avoid
 - Suggested Swaps
-- Final Verdict
+- Final Recommendation
 - Sources Used
 
 The comparison report explains Best Overall, Cheapest Safe, and Best Performance/$ tradeoffs, including cost differences, performance differences, waiting risks, biggest risk per build, and upgrade-path considerations.
 
 Because reports are deterministic, they avoid hallucinated facts. If the evidence is seeded demo data, the essay says so.
+
+## Clickable Buying Reports
+
+Generated recommendations are persisted to `SavedBuild` with stable deterministic IDs. The build cards on the homepage link to full report pages:
+
+- `/builds`: recent generated and seeded saved build reports.
+- `/builds/[buildId]`: full mini-report for a generated build.
+- `/products/[productId]`: product specs, offers, price history, compatibility usage, build usage, and product evidence.
+- `/offers/[offerId]`: selected offer details, effective price math, confidence/risk notes, and connected price history.
+- `/evidence/[evidenceId]`: source metadata and exact claim details.
+- `/prebuilts/[prebuiltId]`: seeded prebuilt detail and DIY comparison.
+
+The build report page is intended to be a buying audit, not just a summary card. It includes:
+
+- top-level price, performance, deal, compatibility, verdict, source count, and seeded/live data labels
+- full cost breakdown by part, including base price, shipping, tax estimate, seller/condition risk penalties, and final effective price
+- part-by-part explanations for why each component was selected, what it is good at, its downside, and what compatibility role it plays
+- exact compatibility values for every rule, such as CPU socket versus motherboard socket, GPU length versus case clearance, and PSU wattage math
+- build-level and per-part price timing analysis with Recharts timeline data
+- a deterministic essay with positives, negatives, tradeoffs, ideal buyer, buyer-to-avoid, upgrade path, and final recommendation
+- source links for product evidence, rule evidence, seeded price evidence, and internal calculation evidence
+- copy/export tools that generate a markdown report
+
+Seeded or demo offer links route to internal `/offers/[offerId]` pages. Real external retailer URLs can be opened in a new tab when they are present and valid. The seeded MVP does not pretend example/demo listings are live retailer claims.
+
+## Prebuilt Placeholder Mode
+
+The schema includes `PrebuiltSystem` and the seed script creates a small demo prebuilt set. This is an architecture placeholder for future DIY-versus-prebuilt buying decisions.
+
+Prebuilt pages show:
+
+- price, retailer, CPU, GPU, RAM, storage, warranty, and known component details
+- unknowns such as exact PSU, motherboard, cooling, memory channel layout, or proprietary parts
+- hidden risks like unknown PSU quality, weak cooling, single-channel RAM, higher markup, and upgradeability limits
+- nearest saved DIY build comparison by price
+
+The prebuilt records are seeded demo records unless a future ingestion pipeline attaches validated retailer/source URLs.
 
 ## Database Schema
 
@@ -153,6 +198,7 @@ The Prisma schema defines:
 - `PriceSnapshot`: timestamped offer-level price history.
 - `DailyProductPrice`: daily aggregate lows and averages for trend analysis.
 - `SavedBuild`: serialized build snapshot for future persistence.
+- `PrebuiltSystem`: seeded/demo prebuilt PC records for future DIY-vs-prebuilt comparison.
 - `EvidenceSource`: source metadata for seeded demo records, internal formulas, rules, and future external sources.
 - `ProductEvidence`: product-level cited claims.
 - `BuildEvidence`: build-level cited claims.
@@ -214,10 +260,22 @@ npm run db:studio
 
 POST bodies are validated with Zod.
 
+## App Routes
+
+- `/`: build workbench and generated recommendation tabs.
+- `/builds`: saved report index.
+- `/builds/[buildId]`: full clickable build buying report.
+- `/products/[productId]`: product detail report.
+- `/offers/[offerId]`: offer detail and effective price math.
+- `/evidence/[evidenceId]`: source/evidence detail.
+- `/prebuilts/[prebuiltId]`: seeded prebuilt detail and DIY comparison.
+
 ## MVP Limitations
 
 - Seeded demo specs and prices are not live source-of-truth data.
 - Seeded retailer offer URLs are not presented as source citations.
+- Seeded offer pages demonstrate the route and math architecture but are not live retailer listings.
+- Seeded prebuilts are placeholders for future DIY-vs-prebuilt comparison.
 - Performance scores are seeded relative scores, not measured benchmarks.
 - Compatibility rules cover the MVP surface, but production should add richer board revision, BIOS, RAM QVL, cooler offset, and case fan/radiator conflict data.
 - Build essays are deterministic summaries, not personalized financial advice.
